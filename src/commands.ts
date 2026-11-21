@@ -112,13 +112,14 @@ export function applyCommands(ctx: Context, config: Config) {
 
       const source = sourceFromSession(session, message, message?.quote)
       const collected = await collectClip(ctx, config, source, visibility)
-      const { clip, existing } = await persistClip(ctx, collected)
+      const { clip, existing, restored } = await persistClip(ctx, collected)
       const label = formatClipId(clipNo(clip))
       if (existing) {
         return `这条消息已经收藏过了：${label}（clip show ${label} 查看）`
       }
       const tail = collected.degraded.length ? `\n⚠️ 降级：${collected.degraded.join(', ')}` : ''
-      return `已收藏 ${label} · ${countMessages(collected.messages)} 条 · ${visibility}\nclip show ${label} 查看${tail}`
+      const head = restored ? '已重新收藏' : '已收藏'
+      return `${head} ${label} · ${countMessages(collected.messages)} 条 · ${visibility}\nclip show ${label} 查看${tail}`
     })
 
   root

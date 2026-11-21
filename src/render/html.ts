@@ -33,11 +33,12 @@ function initialOf(name: string) {
 
 function avatarHtml(snapshot: Snapshot, size: number) {
   const name = snapshot.nickname || snapshot.username || snapshot.userId || '?'
+  const bg = colorOf(snapshot.userId || name)
   const style = `width:${size}px;height:${size}px;border-radius:50%;`
   if (snapshot.avatar) {
-    return `<img class="avatar" style="${style}" src="${escapeHtml(snapshot.avatar)}"/>`
+    // 头像拉不下来时退化成同色圆，不留破图图标
+    return `<img class="avatar" alt="" style="${style}background:${bg}" src="${escapeHtml(snapshot.avatar)}"/>`
   }
-  const bg = colorOf(snapshot.userId || name)
   return `<div class="avatar" style="${style}background:${bg};font-size:${Math.round(size * 0.44)}px">${escapeHtml(initialOf(name))}</div>`
 }
 
@@ -261,7 +262,7 @@ export function buildBubble(clip: Clip, messages: Snapshot[], config: Config) {
     rows.push(`<div class="row">
       <div class="col">
         <div class="name">${escapeHtml(main.nickname || main.username || main.userId || '未知')}<span class="time">${formatTime(main.timestamp)}</span></div>
-        <div class="bubblebody fwd-note">转发了一条<br/>聊天记录</div>
+        <div class="bubblebody fwd-note">转发了一条聊天记录</div>
       </div>
     </div>`)
   }
@@ -299,7 +300,7 @@ export function buildBubble(clip: Clip, messages: Snapshot[], config: Config) {
 .name .time { font-weight: 400; font-size: 14px; color: #98a2b3; margin-left: 8px; }
 .bubblebody { background: #f7f9fc; border-radius: 14px; padding: 14px 16px; font-size: 18px; line-height: 1.55; word-break: break-word; }
 .ghost { background: transparent !important; }
-.fwd-note { display: inline-block; max-width: 210px; padding: 20px 18px; color: #667085; line-height: 1.7; }
+.fwd-note { display: inline-block; max-width: 210px; padding: 12px 16px; color: #667085; white-space: nowrap; }
 `
   return page(style, body, config.imageWidth, config.fontFamily)
 }

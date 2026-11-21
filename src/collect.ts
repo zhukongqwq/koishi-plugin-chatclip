@@ -115,6 +115,19 @@ function userOf(message: any) {
   }
 }
 
+/**
+ * 头像地址：适配器直接给了就用；QQ 的消息里通常没有头像字段，
+ * 但 qlogo 接口对群成员同样有效，按 QQ 号拼一个就能拿到。
+ */
+function avatarOf(user: any, userId: string, platform: string): string {
+  const direct = user?.avatar || user?.avatarUrl
+  if (direct) return String(direct)
+  if (platform === 'onebot' && /^\d{5,12}$/.test(userId)) {
+    return `https://q1.qlogo.cn/g?b=qq&nk=${userId}&s=100`
+  }
+  return ''
+}
+
 function timeOf(message: any, fallback: Date): Date {
   const raw = message?.timestamp ?? message?.createdAt
   if (!raw) return fallback
@@ -379,6 +392,7 @@ export async function collectClip(
   const mainElements: Element[] = message.elements?.length ? message.elements : h.parse(message.content ?? '')
   const mainUser = userOf(message)
   if (!mainUser.username) mainUser.username = mainUser.nickname || mainUser.userId || ''
+  if (!mainUser.avatar) mainUser.avatar = avatarOf(message?.user, mainUser.userId, source.platform)
 
   const messageId = String(message.id || message.messageId || makeMessageId(mainElements, baseTime))
 
@@ -425,6 +439,7 @@ export async function collectClip(
         count++
         const user = node?.sender ?? {}
         const nickname = String(user.card || user.nickname || '')
+        const userId = String(user.user_id ?? node?.user_id ?? '')
         messages.push(await buildSnapshot(ctx, config, {
           role: 'forward',
           elements,
@@ -433,9 +448,10 @@ export async function collectClip(
           timestamp: timeOf({ timestamp: node?.time ? node.time * 1000 : undefined }, baseTime),
           quoteDepth: 0,
           parentId: current.id,
-          userId: String(user.user_id ?? ''),
+          userId,
           username: nickname,
           nickname,
+          avatar: avatarOf(node, userId, source.platform),
         }, attachments, messages.length))
 
         // 这一条自己又是一个合并转发：继续往下走一层
@@ -489,7 +505,7 @@ export async function collectClip(
       userId: user.userId,
       username: user.username,
       nickname: user.nickname,
-      avatar: user.avatar,
+      avatar: user.avatar || avatarOf(item.user, user.userId, source.platform),
       degraded: missing,
     }, attachments, messages.length))
   }
@@ -518,6 +534,8 @@ export async function collectClip(
 export interface PersistResult {
   clip: Clip
   existing: boolean
+  /** 之前软删除过、这次重新收藏把它从回收站拉了回来 */
+  restored?: boolean
 }
 
 /**
@@ -538,7 +556,22 @@ export async function persistClip(ctx: Context, data: CollectedClip): Promise<Pe
     ownerId: data.ownerId,
   }
   const existing = await ctx.database.get(TABLES.clip, key)
-  if (existing.length) return { clip: existing[0] as Clip, existing: true }
+  if (existing.length) {
+    const old = existing[0] as Clip
+    if (!old.deletedAt) return { clip: old, existing: true }
+    // 之前删掉的同一条消息：重新收藏时把它从回收站拉回来，而不是报「已经收藏过了」
+    await ctx.database.set(TABLES.clip, { id: old.id }, {
+      deletedAt: null,
+      visibility: data.visibility,
+      messageCount: countMessages(data.messages),
+      ownerName: data.ownerName,
+      degraded: data.degraded,
+      meta: data.meta,
+      createdAt: new Date(),
+    })
+    const [revived] = await ctx.database.get(TABLES.clip, { id: old.id })
+    return { clip: revived as Clip, existing: false, restored: true }
+  }
 
   let clipId: number
   try {

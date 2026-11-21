@@ -197,6 +197,7 @@ async function run() {
     'depths =', nested.messages.map((item) => item.depth).join(','),
     'degraded =', nested.degraded,
   )
+  console.log('[nested avatar]', nested.messages.map((item) => item.avatar || '-').join(' | '))
   const nestedClip = await persistClip(ctx, nested)
 
   // forwardDepth = 1 时内层应该不再展开
@@ -300,6 +301,12 @@ async function run() {
   await ctx.database.set(TABLES.clip, { id: first.clip.id }, { deletedAt: new Date() })
   const recycle = await queryClips(ctx, { deletedOnly: true }, 1, 10)
   console.log('[recycle] soft-deleted =', recycle.total)
+
+  // 8.1 重新收藏同一条消息：应该从回收站拉回来，而不是报「已经收藏过了」
+  const revived = await persistClip(ctx, collected)
+  console.log('[revive] existing =', revived.existing, 'restored =', !!revived.restored, 'deletedAt =', revived.clip.deletedAt ? 'set' : 'null')
+  // 恢复后重新软删除，后面的清空回收站用例才有东西可删
+  await ctx.database.set(TABLES.clip, { id: revived.clip.id }, { deletedAt: new Date() })
   const blocked = await purgeClips(ctx, { ids: [forwardClip.clip.id] })
   console.log('[purge] not-yet-deleted skipped =', blocked.skipped.length, 'removed =', blocked.ids.length)
   const purged = await purgeClips(ctx, { all: true })
