@@ -19,9 +19,12 @@ export function isMedia(type: string) {
 }
 
 export function serialize(el: Element): ElementJSON {
+  const attrs: Record<string, any> = { ...el.attrs }
+  // 转发的 content 只是展开时的原始素材，展开后就存成独立的消息行了，留着只会把 JSON 撑爆
+  if (el.type === 'forward') delete attrs.content
   return {
     type: el.type,
-    attrs: { ...el.attrs },
+    attrs,
     children: el.children.map((child) => typeof child === 'string' ? child : serialize(child)),
   }
 }
@@ -75,6 +78,7 @@ export interface PendingAttachment {
 export interface PendingSnapshot {
   role: Role
   quoteDepth: number
+  depth: number
   parentId?: string
   messageId: string
   userId: string
@@ -170,7 +174,7 @@ function segmentToElement(seg: any): Element | null {
     case 'reply':
       return h.quote(String(data.id ?? ''))
     case 'forward':
-      return h('forward', { id: String(data.id ?? '') })
+      return h('forward', { id: String(data.id ?? ''), content: data.content })
     case 'video':
       return h.video(data.url || data.file || '')
     case 'record':
@@ -263,6 +267,8 @@ interface SnapshotOptions {
   messageId: string
   timestamp: Date
   quoteDepth: number
+  /** 合并转发的嵌套层数，main = 0 */
+  depth?: number
   parentId?: string
   degraded?: string[]
 }
@@ -295,6 +301,7 @@ async function buildSnapshot(
   return {
     role: options.role,
     quoteDepth: options.quoteDepth,
+    depth: options.depth ?? 0,
     parentId: options.parentId,
     messageId: options.messageId,
     userId: options.userId,
@@ -312,6 +319,15 @@ function forwardOf(elements: Element[]): string[] {
   return elements
     .filter((el) => el.type === 'forward' && el.attrs.id)
     .map((el) => String(el.attrs.id))
+}
+
+/** 一次收藏最多展开多少条转发消息，防止超大转发把库撑爆。 */
+const MAX_FORWARD_MESSAGES = 200
+
+/** NapCat 会把转发的完整内容塞进段数据的 content 字段，能直接复用就不用再发一次 API。 */
+function forwardInline(attrs: any): any[] | undefined {
+  const content = attrs?.content
+  return Array.isArray(content) && content.length ? content : undefined
 }
 
 export interface CollectSource {
@@ -375,37 +391,65 @@ export async function collectClip(
     ...mainUser,
   }, attachments, 0))
 
-  // 合并转发：主消息里出现 <forward id> 就展开
+  // 合并转发：主消息里出现 <forward id> 就展开，并逐层递归到 forwardDepth。
+  // NapCat 会把整个转发的 content 直接塞进 CQ 码/段数据里，能读到就不用再发一次 API。
   if (config.forwardDepth > 0) {
-    for (const forwardId of forwardOf(mainElements)) {
-      const nodes = await expandForward(source.bot, forwardId, config.forwardLimit)
+    const queue: { id: string; depth: number; inline?: any[] }[] = []
+    for (const el of mainElements) {
+      if (el.type !== 'forward' || !el.attrs.id) continue
+      queue.push({ id: String(el.attrs.id), depth: 1, inline: forwardInline(el.attrs) })
+    }
+    const seen = new Set<string>()
+    while (queue.length) {
+      const current = queue.shift()!
+      if (seen.has(current.id)) continue
+      seen.add(current.id)
+
+      const nodes = (current.inline?.length ? current.inline : null)
+        ?? await expandForward(source.bot, current.id, config.forwardLimit)
       if (!nodes) {
         degraded.push('forward-unavailable')
         messages[0].degraded.push('forward-unavailable')
         continue
       }
+
       let truncated = false
+      let count = 0
       for (const node of nodes) {
-        const elements = parseSegments(node?.message)
-        if (!elements.length) continue
-        const user = node?.sender ?? {}
-        messages.push(await buildSnapshot(ctx, config, {
-          role: 'forward',
-          elements,
-          messageId: String(node?.message_id ?? ''),
-          timestamp: timeOf({ timestamp: node?.time ? node.time * 1000 : undefined }, baseTime),
-          quoteDepth: 0,
-          parentId: forwardId,
-          userId: String(user.user_id ?? ''),
-          username: user.card || user.nickname || '',
-          nickname: user.card || user.nickname || '',
-        }, attachments, messages.length))
-        if (messages.length > config.forwardLimit + 1) {
+        if (count >= config.forwardLimit || messages.length >= MAX_FORWARD_MESSAGES) {
           truncated = true
           break
         }
+        const elements = parseSegments(node?.message)
+        if (!elements.length) continue
+        count++
+        const user = node?.sender ?? {}
+        const nickname = String(user.card || user.nickname || '')
+        messages.push(await buildSnapshot(ctx, config, {
+          role: 'forward',
+          elements,
+          depth: current.depth,
+          messageId: String(node?.message_id ?? ''),
+          timestamp: timeOf({ timestamp: node?.time ? node.time * 1000 : undefined }, baseTime),
+          quoteDepth: 0,
+          parentId: current.id,
+          userId: String(user.user_id ?? ''),
+          username: nickname,
+          nickname,
+        }, attachments, messages.length))
+
+        // 这一条自己又是一个合并转发：继续往下走一层
+        if (current.depth < config.forwardDepth) {
+          for (const el of elements) {
+            if (el.type !== 'forward' || !el.attrs.id) continue
+            queue.push({ id: String(el.attrs.id), depth: current.depth + 1, inline: forwardInline(el.attrs) })
+          }
+        }
       }
-      if (truncated) degraded.push('forward-truncated')
+      if (truncated) {
+        degraded.push('forward-truncated')
+        messages[0].degraded.push('forward-truncated')
+      }
     }
   }
 
@@ -523,6 +567,7 @@ export async function persistClip(ctx: Context, data: CollectedClip): Promise<Pe
       seq: index,
       role: snapshot.role,
       quoteDepth: snapshot.quoteDepth,
+      depth: snapshot.depth,
       parentId: snapshot.parentId,
       messageId: snapshot.messageId,
       userId: snapshot.userId,

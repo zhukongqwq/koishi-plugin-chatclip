@@ -40,7 +40,10 @@ export interface Snapshot {
   clipId: number
   seq: number
   role: Role
+  /** 引用链层数（main = 0） */
   quoteDepth: number
+  /** 合并转发的嵌套层数（main = 0，第一层转发 = 1） */
+  depth: number
   parentId?: string
   messageId: string
   userId: string
@@ -118,6 +121,7 @@ export function applyTables(ctx: Context) {
     seq: 'unsigned',
     role: 'string',
     quoteDepth: 'unsigned',
+    depth: 'unsigned',
     parentId: 'string',
     messageId: 'string',
     userId: 'string',

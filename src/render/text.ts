@@ -118,7 +118,10 @@ export function renderDetail(clip: Clip, messages: Snapshot[], attachmentCount: 
   for (const [index, snapshot] of messages.entries()) {
     const speaker = snapshot.nickname || snapshot.username || snapshot.userId || '未知'
     const time = formatTime(snapshot.timestamp).slice(11)
-    const prefix = snapshot.role === 'forward' ? '　' : snapshot.role === 'quote' ? '↳ ' : ''
+    const depth = snapshot.role === 'forward' ? Math.max(1, snapshot.depth ?? 1) : 0
+    const prefix = snapshot.role === 'forward'
+      ? '　'.repeat(depth)
+      : snapshot.role === 'quote' ? '↳ ' : ''
     lines.push(`${prefix}${ordinal(index)} ${speaker} · ${time}`)
     for (const line of (snapshot.content || '[无文字内容]').split('\n')) {
       lines.push(`  ${line}`)

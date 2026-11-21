@@ -74,6 +74,58 @@ const forwardMain = {
   timestamp: new Date(now - 60_000),
 }
 
+// 嵌套转发：NapCat 会把内层的完整 content 塞进段数据里，这里模拟同样的形状
+const innerNodes = [
+  {
+    message_id: 'n-1',
+    sender: { user_id: '10003', card: '李四' },
+    time: Math.floor((now - 300_000) / 1000),
+    message: [{ type: 'text', data: { text: '内层：这个阈值我调过了' } }],
+  },
+  {
+    message_id: 'n-2',
+    sender: { user_id: '10002', card: '张三' },
+    time: Math.floor((now - 290_000) / 1000),
+    message: [
+      { type: 'text', data: { text: '内层：那我看下日志 ' } },
+      { type: 'image', data: { url: svg('内层图', '#bfdbfe', '#93c5fd') } },
+    ],
+  },
+]
+
+const outerNodes = [
+  {
+    message_id: 'o-1',
+    sender: { user_id: '10002', card: '张三' },
+    time: Math.floor((now - 120_000) / 1000),
+    message: [{ type: 'text', data: { text: '外层：先看这条，然后下面这条是转发' } }],
+  },
+  {
+    message_id: 'o-2',
+    sender: { user_id: '10001', card: '白露' },
+    time: Math.floor((now - 110_000) / 1000),
+    message: [{ type: 'forward', data: { id: 'fwd-inner', content: innerNodes } }],
+  },
+]
+
+const nestedBot = {
+  internal: {
+    getForwardMsg: async (id: string) => {
+      if (id === 'fwd-outer') return outerNodes
+      if (id === 'fwd-inner') return innerNodes
+      return []
+    },
+  },
+}
+
+const nestedMain = {
+  id: 'msg-main-3',
+  content: '群聊的聊天记录',
+  elements: [h('forward', { id: 'fwd-outer' })],
+  user: { id: '10001', name: 'bailu', nickname: '白露' },
+  timestamp: new Date(now - 150_000),
+}
+
 function makeSource(message: any, extra: Partial<CollectSource> = {}): CollectSource {
   return {
     platform: 'onebot',
@@ -132,6 +184,32 @@ async function run() {
   console.log('[forward] messages =', forwarded.messages.length, 'degraded =', forwarded.degraded)
   const forwardClip = await persistClip(ctx, forwarded)
   console.log('[forward persist] id =', forwardClip.clip.id)
+
+  // 3.2 嵌套转发：forwardDepth = 2 时应该把内层也展开，depth 依次为 1 / 2
+  const nested = await collectClip(
+    ctx,
+    { ...config2(), forwardDepth: 2 },
+    { ...makeSource(nestedMain), bot: nestedBot },
+    'private',
+  )
+  console.log(
+    '[nested forward] messages =', nested.messages.length,
+    'depths =', nested.messages.map((item) => item.depth).join(','),
+    'degraded =', nested.degraded,
+  )
+  const nestedClip = await persistClip(ctx, nested)
+
+  // forwardDepth = 1 时内层应该不再展开
+  const shallow = await collectClip(
+    ctx,
+    { ...config2(), forwardDepth: 1 },
+    { ...makeSource({ ...nestedMain, id: 'msg-main-4' }), bot: nestedBot },
+    'private',
+  )
+  console.log(
+    '[shallow forward] messages =', shallow.messages.length,
+    'depths =', shallow.messages.map((item) => item.depth).join(','),
+  )
 
   // 3.5 引用链去重：适配器把「主消息自己」塞进 quote 时不能重复存
   const selfQuoted = await collectClip(
@@ -198,6 +276,7 @@ async function run() {
   const targets: [string, typeof loaded][] = [
     ['clip', loaded],
     ['bubble', await loadClip(ctx, forwardClip.clip.id) as any],
+    ['forward-nested', await loadClip(ctx, nestedClip.clip.id) as any],
   ]
   for (const [name, target] of targets) {
     const result = await renderClip(ctx, config2(), target.clip, target.messages)

@@ -125,18 +125,46 @@ function quoteBlock(quote: Snapshot | undefined, compact: boolean) {
   </div>`
 }
 
-function forwardGroup(children: Snapshot[]) {
-  if (!children.length) return ''
-  const lines = children.map((child) => {
+/** 转发内容按聊天气泡逐条排，嵌套转发再开一层缩进。 */
+function forwardRows(
+  children: Snapshot[],
+  byParent: Map<string, Snapshot[]>,
+  depth: number,
+): string {
+  return children.map((child) => {
     const split = splitElements(child.elements)
-    const name = child.nickname || child.username || '未知'
-    const text = split.text.length > 60 ? split.text.slice(0, 60) + '…' : split.text
-    const extra = split.media.length ? ` [${split.media.length} 个附件]` : ''
-    return `<div class="fwd-row"><span class="fwd-name">${escapeHtml(name)}</span><span class="fwd-text">${textHtml(text) || '<span class="dim">[内容]</span>'}${extra}</span></div>`
+    const name = child.nickname || child.username || child.userId || '未知'
+    const nested = split.forwards
+      .map((id) => {
+        const list = byParent.get(id) ?? []
+        if (!list.length) {
+          // 老数据（展开深度为 1 时收藏的）只有 forward id，没有子消息
+          return `<div class="fwd-sub"><div class="fwd-sub-head dim">更深的聊天记录没有展开</div></div>`
+        }
+        return `<div class="fwd-sub">
+          <div class="fwd-sub-head">聊天记录 · ${list.length} 条</div>
+          ${forwardRows(list, byParent, depth + 1)}
+        </div>`
+      })
+      .join('')
+    const inner = split.text ? textHtml(split.text) : ''
+    const empty = !split.text && !split.media.length && !nested
+    const body = `${inner}${mediaHtml(split.media, 150)}${nested}${empty ? '<span class="dim">[无文字内容]</span>' : ''}`
+    return `<div class="fwd-row" style="margin-left:${(depth - 1) * 8}px">
+      ${avatarHtml(child, 22)}
+      <div class="fwd-main">
+        <div class="fwd-name">${escapeHtml(name)}<span class="fwd-time">${formatTime(child.timestamp)}</span></div>
+        <div class="fwd-bubble${depth > 1 ? ' deep' : ''}">${body}</div>
+      </div>
+    </div>`
   }).join('')
+}
+
+function forwardBlock(children: Snapshot[], byParent: Map<string, Snapshot[]>) {
+  if (!children.length) return ''
   return `<div class="fwd">
-    <div class="fwd-head">群聊的聊天记录 <span class="dim">· ${children.length} 条</span></div>
-    ${lines}
+    <div class="fwd-head">群聊的聊天记录<span class="dim"> · ${children.length} 条</span></div>
+    ${forwardRows(children, byParent, 1)}
   </div>`
 }
 
@@ -166,11 +194,17 @@ body { background: #eef1f6; font-family: ${font}; -webkit-font-smoothing: antial
 .quote-head { font-size: 15px; color: #667085; margin-bottom: 6px; }
 .quote-text { font-size: 17px; color: #475467; line-height: 1.5; }
 .quote-thumb { width: 108px; height: 108px; object-fit: cover; border-radius: 10px; border: 1px solid #e7ebf3; flex: none; }
-.fwd { border: 1px solid #e7ebf3; border-radius: 14px; padding: 14px 16px; margin-top: 14px; }
-.fwd-head { font-size: 17px; font-weight: 600; margin-bottom: 10px; }
-.fwd-row { display: flex; gap: 8px; font-size: 16px; line-height: 1.6; color: #475467; }
-.fwd-name { color: #667085; flex: none; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fwd-text { flex: 1; min-width: 0; }
+.fwd { padding: 0; }
+.fwd-head { font-size: 16px; font-weight: 600; color: #667085; margin-bottom: 8px; }
+.fwd-row { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; }
+.fwd-row + .fwd-row { border-top: 1px dashed #f0f3f9; }
+.fwd-main { flex: 1; min-width: 0; }
+.fwd-name { font-size: 15px; font-weight: 600; color: #475467; margin-bottom: 5px; }
+.fwd-time { font-weight: 400; font-size: 13px; color: #98a2b3; margin-left: 6px; }
+.fwd-bubble { background: #f7f9fc; border-radius: 12px; padding: 10px 14px; font-size: 16px; line-height: 1.55; word-break: break-word; }
+.fwd-bubble.deep { background: #fbfcfe; border: 1px solid #f0f3f9; }
+.fwd-sub { margin-top: 8px; border-left: 3px solid #e2e8f5; border-radius: 8px; padding: 6px 8px; }
+.fwd-sub-head { font-size: 14px; color: #667085; margin-bottom: 6px; }
 .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 14px; border-top: 1px solid #eef1f6; font-size: 14px; color: #98a2b3; }
 `
 
@@ -227,13 +261,21 @@ export function buildBubble(clip: Clip, messages: Snapshot[], config: Config) {
     rows.push(`<div class="row">
       <div class="col">
         <div class="name">${escapeHtml(main.nickname || main.username || main.userId || '未知')}<span class="time">${formatTime(main.timestamp)}</span></div>
-        <div class="bubblebody fwd-note">转发了一条聊天记录</div>
+        <div class="bubblebody fwd-note">转发了一条<br/>聊天记录</div>
       </div>
     </div>`)
   }
 
   if (forwards.length) {
-    rows.push(`<div class="row"><div class="avatar ghost"></div><div class="col">${forwardGroup(forwards)}</div></div>`)
+    const byParent = new Map<string, Snapshot[]>()
+    for (const item of forwards) {
+      const key = item.parentId ?? ''
+      const list = byParent.get(key) ?? []
+      list.push(item)
+      byParent.set(key, list)
+    }
+    const top = forwards.filter((item) => (item.depth ?? 1) <= 1)
+    rows.push(`<div class="row"><div class="col">${forwardBlock(top.length ? top : forwards, byParent)}</div></div>`)
   }
 
   const body = `
@@ -257,7 +299,7 @@ export function buildBubble(clip: Clip, messages: Snapshot[], config: Config) {
 .name .time { font-weight: 400; font-size: 14px; color: #98a2b3; margin-left: 8px; }
 .bubblebody { background: #f7f9fc; border-radius: 14px; padding: 14px 16px; font-size: 18px; line-height: 1.55; word-break: break-word; }
 .ghost { background: transparent !important; }
-.fwd-note { color: #98a2b3; }
+.fwd-note { display: inline-block; max-width: 210px; padding: 20px 18px; color: #667085; line-height: 1.7; }
 `
   return page(style, body, config.imageWidth, config.fontFamily)
 }

@@ -59,7 +59,7 @@ npm i koishi-plugin-chatclip
 | --- | --- | --- |
 | `defaultVisibility` | `private` | 默认可见性：`private` 仅自己 / `channel` 本群 / `public` 公开 |
 | `quoteDepth` | `3` | 引用链最多向上存几层 |
-| `forwardDepth` | `1` | 合并转发展开几层 |
+| `forwardDepth` | `1` | 合并转发展开几层（逐层递归，渲染时按层嵌套展示） |
 | `forwardLimit` | `50` | 单次展开的子消息上限，超出标记 `truncated` |
 | `allowPrivate` / `allowGroup` | `true` | 是否允许私聊 / 群聊收藏 |
 | `storage` | `true` | 是否把附件转存到 assets |
