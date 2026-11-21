@@ -95,6 +95,24 @@ node scripts/e2e-console.mjs                # 控制台筛选与导出的端到�
 
 设计文档见 `docs/PLAN.md`、`GLOSSARY.md`、`docs/adr/`，设计稿见 `docs/mockups/`（SVG），全部命令的验收流程见 `docs/VERIFY.md`。
 
+### 测试
+
+```bash
+yarn test        # = node -r esbuild-register --test tests/*.test.ts
+```
+
+测试只打四个公共接口，不进入指令层（指令的解析行为由 `docs/VERIFY.md` 的手工流程覆盖）：
+
+| 缝 | 被测函数 | 覆盖点 |
+| --- | --- | --- |
+| 采集 | `collectClip` / `persistClip` | 引用链深度与自环、转发按 `forwardDepth` 分层、`forwardLimit` 截断、`getForwardMsg` 缺失降级、头像来源、幂等、软删除后重新收藏、落库的 `no` 与 `messageCount` |
+| 查询 | `queryClips` / `purgeClips` / `renumberClips` / `resolveClipRef` | 编号补位、回收站过滤、硬删除只作用于已软删除的行、编号输入的各种写法、筛选与分页 |
+| 文字渲染 | `renderList` / `renderDetail` / `summaryText` / `truncate` | 25 字截断、占位符剥离、列表与详情排版、空列表 |
+| HTML 结构 | `buildHtml` | 引号位置、引用块、纯转发的矮条、九宫格上限、嵌套缩进、头像回退 |
+
+测试会在 `.tmp-test/` 下建临时数据库与 assets 目录（已 gitignore），每个文件用独立的库名，互不干扰。
+
+
 > 注意：控制台在 **prod 模式**下会校验静态资源路径必须落在 `node_modules` 或控制台自身目录里。本插件开发时是工作区软链接（`external/chatclip` → `node_modules/koishi-plugin-chatclip`），所以 prod 模式访问 `/chatclip` 会 403，本地调试一律用 `yarn dev`。发布安装后不存在这个问题。
 
 ### 已知问题：命令报 `RangeError: Maximum call stack size exceeded`

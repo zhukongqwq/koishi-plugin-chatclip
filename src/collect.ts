@@ -419,8 +419,9 @@ export async function collectClip(
       if (seen.has(current.id)) continue
       seen.add(current.id)
 
+      // 多要一条：拿到 limit+1 条才说明「还有更多」，否则截断会被悄悄吞掉
       const nodes = (current.inline?.length ? current.inline : null)
-        ?? await expandForward(source.bot, current.id, config.forwardLimit)
+        ?? await expandForward(source.bot, current.id, config.forwardLimit + 1)
       if (!nodes) {
         degraded.push('forward-unavailable')
         messages[0].degraded.push('forward-unavailable')

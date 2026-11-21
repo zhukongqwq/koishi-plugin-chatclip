@@ -27,3 +27,4 @@ tsconfig.tsbuildinfo
 docs/preview/
 docs/check-*.png
 docs/mockups/*.png
+.tmp-test/

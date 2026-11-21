@@ -52,6 +52,29 @@ async function messagesOf(ctx: Context, clips: Clip[]): Promise<Map<number, Snap
   return map
 }
 
+/** 把列表渲染成图片；puppeteer 缺失或渲染失败都返回 null，调用方据此降级成文字。 */
+async function renderListImage(
+  ctx: Context,
+  config: Config,
+  items: { clip: Clip; messages: Snapshot[] }[],
+  title: string,
+): Promise<string | null> {
+  if (!ctx.puppeteer) return null
+  const html = buildListCard(items, config, title)
+  return ctx.puppeteer
+    .render(html, async (page, next) => {
+      await page.setViewport({ width: config.imageWidth + 72, height: 400, deviceScaleFactor: 2 })
+      // 外部资源（头像/图片）慢时 waitForNetworkIdle 会超时抛错，
+      // 一旦抛出 puppeteer 插件就跳过 page.close()，页面会一直留在浏览器里
+      await page.waitForNetworkIdle({ idleTime: 200, timeout: 5000 }).catch(() => {})
+      return next((await page.$('.card')) ?? undefined)
+    })
+    .catch((error: any) => {
+      ctx.logger('chatclip').warn('list render failed: %s', error?.message ?? error)
+      return null
+    })
+}
+
 export function applyCommands(ctx: Context, config: Config) {
   const logger = ctx.logger('chatclip')
 
@@ -153,20 +176,8 @@ export function applyCommands(ctx: Context, config: Config) {
       const items = result.items.map((clip) => ({ clip, messages: map.get(clip.id) ?? [] }))
 
       if (options.image) {
-        const html = buildListCard(items, config, '我的收藏')
-        if (ctx.puppeteer) {
-          const image = await ctx.puppeteer
-            .render(html, async (page, next) => {
-              await page.setViewport({ width: config.imageWidth + 72, height: 400, deviceScaleFactor: 2 })
-              await page.waitForNetworkIdle()
-              return next((await page.$('.card')) ?? undefined)
-            })
-            .catch((error: any) => {
-              logger.warn('list render failed: %s', error?.message ?? error)
-              return null
-            })
-          if (image) return image
-        }
+        const image = await renderListImage(ctx, config, items, '我的收藏')
+        if (image) return image
       }
 
       return renderList(items, {
@@ -242,17 +253,8 @@ export function applyCommands(ctx: Context, config: Config) {
       const items = result.items.map((clip) => ({ clip, messages: map.get(clip.id) ?? [] }))
 
       if (options.image) {
-        const html = buildListCard(items, config, `搜索「${keyword}」`)
-        if (ctx.puppeteer) {
-          const image = await ctx.puppeteer
-            .render(html, async (page, next) => {
-              await page.setViewport({ width: config.imageWidth + 72, height: 400, deviceScaleFactor: 2 })
-              await page.waitForNetworkIdle()
-              return next((await page.$('.card')) ?? undefined)
-            })
-            .catch(() => null)
-          if (image) return image
-        }
+        const image = await renderListImage(ctx, config, items, `搜索「${keyword}」`)
+        if (image) return image
       }
 
       return renderList(items, {
@@ -272,7 +274,8 @@ export function applyCommands(ctx: Context, config: Config) {
     const isOwner = clip.ownerId === ownerId
     const isAdmin = authorityOf(session) >= 4
     if (!isOwner && !isAdmin) return '只有收藏者本人或管理员可以删除。'
-    await ctx.database.set(TABLES.clip, clip.id, { deletedAt: new Date() })
+    if (clip.deletedAt) return `${formatClipId(clipNo(clip))} 已经在回收站里了。`
+    await ctx.database.set(TABLES.clip, { id: clip.id }, { deletedAt: new Date() })
     return `已删除 ${formatClipId(clipNo(clip))}（可恢复）。`
   })
 
@@ -351,8 +354,7 @@ export function authorityOf(session: Session): number {
 }
 
 /** `--image` 时用的总览卡：整页 HTML 交给 puppeteer 渲染 */
-function buildListCard(items: { clip: Clip; messages: Snapshot[] }[], config: Config, title: string): string {
-  const rows = items
+function buildListCard(items: { clip: Clip; messages: Snapshot[] }[], config: Config, title: string): string {  const rows = items
     .map((item) => {
       const main = item.messages.find((message) => message.role === 'main') ?? item.messages[0]
       const name = main?.nickname || main?.username || item.clip.ownerName || '未知'

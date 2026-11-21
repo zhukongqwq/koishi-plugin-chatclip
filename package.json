@@ -1,6 +1,7 @@
 {
   "name": "koishi-plugin-chatclip",
-  "version": "0.0.1",
+  "version": "1.0.0",
+  "description": "收藏被引用的聊天记录：文字列表、图片渲染、搜索筛选与控制台管理",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -8,17 +9,66 @@
     "dist"
   ],
   "license": "MIT",
+  "author": "zhukong <1583393149@qq.com>",
+  "contributors": [
+    "zhukong <1583393149@qq.com>"
+  ],
+  "homepage": "https://github.com/zhukongqwq/koishi-plugin-chatclip#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhukongqwq/koishi-plugin-chatclip.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zhukongqwq/koishi-plugin-chatclip/issues"
+  },
   "keywords": [
     "chatbot",
     "koishi",
-    "plugin"
+    "plugin",
+    "chat",
+    "clip",
+    "bookmark",
+    "favorite",
+    "quote",
+    "forward",
+    "onebot",
+    "screenshot"
   ],
-  "devDependencies": {
-    "@koishijs/client": "^5.30.4",
-    "@vicons/ionicons5": "^0.13.0"
+  "scripts": {
+    "test": "node -r esbuild-register --test tests/*.test.ts"
+  },
+  "koishi": {
+    "category": "tool",
+    "description": {
+      "zh": "收藏被引用的聊天记录，支持文字与图片两种展示、搜索筛选、回收站与控制台管理",
+      "en": "Collect quoted messages into a searchable clipboard, rendered as text or image"
+    },
+    "service": {
+      "required": [
+        "database"
+      ],
+      "optional": [
+        "assets",
+        "puppeteer",
+        "console"
+      ]
+    }
   },
   "peerDependencies": {
     "@koishijs/plugin-console": "^5.30.4",
-    "koishi": "^4.18.7"
+    "koishi": "^4.18.7",
+    "koishi-plugin-puppeteer": "^3.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@koishijs/plugin-console": {
+      "optional": true
+    },
+    "koishi-plugin-puppeteer": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@koishijs/client": "^5.30.4",
+    "@vicons/ionicons5": "^0.13.0"
   }
 }
