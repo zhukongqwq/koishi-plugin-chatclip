@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="620" viewBox="0 0 760 620">
+<defs>
+  <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#1f2328" flood-opacity="0.10"/>
+  </filter>
+  <linearGradient id="av" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#9db8ff"/><stop offset="1" stop-color="#6f8ff5"/>
+  </linearGradient>
+</defs>
+<rect width="760" height="620" fill="#eef0f4"/>
+
+<!-- 卡片 -->
+<rect x="40" y="24" width="680" height="572" rx="20" fill="#ffffff" filter="url(#sh)"/>
+
+<!-- 左侧头像 -->
+<circle cx="132" cy="128" r="62" fill="url(#av)"/>
+<text x="132" y="149" font-family='"Microsoft YaHei", system-ui' font-size="52" font-weight="600" fill="#ffffff" text-anchor="middle">白</text>
+
+<!-- 引号 + 正文 -->
+<text x="212" y="104" font-family='Georgia, "Times New Roman", serif' font-size="64" fill="#d6dde8">“</text>
+<text x="212" y="158" font-family='"Microsoft YaHei", system-ui' font-size="30" font-weight="600" fill="#111827">这个渲染函数我改完了，</text>
+<text x="212" y="200" font-family='"Microsoft YaHei", system-ui' font-size="30" font-weight="600" fill="#111827">你看一下 👇</text>
+
+<!-- 作者署名 -->
+<text x="212" y="252" font-family='"Microsoft YaHei", system-ui' font-size="22" fill="#374151">—— 白露（白露）</text>
+<text x="212" y="282" font-family='"Segoe UI", Consolas, monospace' font-size="15" fill="#9aa4b2">(userId: 1277629216)</text>
+
+<!-- 引用块 -->
+<rect x="212" y="312" width="468" height="128" rx="12" fill="#f7f9fc" stroke="#e8eef6"/>
+<rect x="212" y="312" width="4" height="128" rx="2" fill="#8ab4ff"/>
+<text x="232" y="340" font-family='"Microsoft YaHei", system-ui' font-size="12.5" font-weight="600" fill="#8b949e">张三 · 2026-11-20 22:01</text>
+<text x="232" y="368" font-family='"Microsoft YaHei", system-ui' font-size="14" fill="#3f4a57">气泡宽度要跟着内容走，</text>
+<text x="232" y="392" font-family='"Microsoft YaHei", system-ui' font-size="14" fill="#3f4a57">别写死 480px</text>
+<text x="232" y="420" font-family='"Microsoft YaHei", system-ui' font-size="11.5" fill="#a3acb8">↳ 这是被引用的那条消息，图片也会一起带上</text>
+
+<!-- 引用里的图片 -->
+<rect x="556" y="326" width="108" height="100" rx="8" fill="#e3ecff" stroke="#cfd8e3"/>
+<path d="M566 416 l24 -36 l16 20 l20 -30 l26 46 z" fill="#ffffff" opacity="0.6"/>
+<circle cx="654" cy="340" r="9" fill="#0f172a" opacity="0.32"/>
+<text x="654" y="344" font-family='"Microsoft YaHei", system-ui' font-size="9" fill="#ffffff" text-anchor="middle">图</text>
+
+<!-- 主消息附件图片 -->
+<text x="212" y="478" font-family='"Microsoft YaHei", system-ui' font-size="11.5" font-weight="600" fill="#9aa4b2">附件 1</text>
+<rect x="212" y="490" width="232" height="88" rx="10" fill="#eef4ff" stroke="#cfd8e3"/>
+<path d="M222 568 l46 -52 l30 34 l26 -26 l40 44 z" fill="#ffffff" opacity="0.62"/>
+<text x="328" y="524" font-family='"Microsoft YaHei", system-ui' font-size="11" fill="#5b6675" text-anchor="middle">screenshot-2026-11-20.png</text>
+
+<!-- 时间与品牌 -->
+<text x="700" y="576" font-family='"Segoe UI", system-ui' font-size="11.5" fill="#a3acb8" text-anchor="end">2026-11-20 22:03</text>
+<text x="60" y="576" font-family='"Segoe UI", system-ui' font-size="11" fill="#c0c7d1">chatclip · #A1024</text>
+</svg>

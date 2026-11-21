@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="700" viewBox="0 0 760 700">
+<defs>
+  <filter id="sh2" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#1f2328" flood-opacity="0.10"/>
+  </filter>
+  <linearGradient id="av2" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#ffd0a8"/><stop offset="1" stop-color="#f2a65a"/>
+  </linearGradient>
+</defs>
+<rect width="760" height="700" fill="#eef0f4"/>
+
+<rect x="40" y="24" width="680" height="652" rx="20" fill="#ffffff" filter="url(#sh2)"/>
+
+<circle cx="132" cy="128" r="62" fill="url(#av2)"/>
+<text x="132" y="149" font-family='"Microsoft YaHei", system-ui' font-size="52" font-weight="600" fill="#ffffff" text-anchor="middle">张</text>
+
+<text x="212" y="104" font-family='Georgia, "Times New Roman", serif' font-size="64" fill="#d6dde8">“</text>
+<text x="212" y="158" font-family='"Microsoft YaHei", system-ui' font-size="30" font-weight="600" fill="#111827">这三张图是同一个 bug，</text>
+<text x="212" y="200" font-family='"Microsoft YaHei", system-ui' font-size="30" font-weight="600" fill="#111827">你看第一张就明白了…</text>
+
+<text x="212" y="252" font-family='"Microsoft YaHei", system-ui' font-size="22" fill="#374151">—— 张三（张三）</text>
+<text x="212" y="282" font-family='"Segoe UI", Consolas, monospace' font-size="15" fill="#9aa4b2">(userId: 10001)</text>
+
+<!-- 三图网格 -->
+<text x="212" y="326" font-family='"Microsoft YaHei", system-ui' font-size="11.5" font-weight="600" fill="#9aa4b2">附件 3</text>
+<rect x="212" y="338" width="290" height="170" rx="10" fill="#e3ecff" stroke="#cfd8e3"/>
+<path d="M222 508 l70 -92 l44 52 l34 -36 l56 76 z" fill="#ffffff" opacity="0.6"/>
+<rect x="516" y="338" width="164" height="80" rx="10" fill="#ffe9e3" stroke="#cfd8e3"/>
+<path d="M526 418 l40 -44 l30 32 l26 -22 l34 34 z" fill="#ffffff" opacity="0.62"/>
+<rect x="516" y="428" width="164" height="80" rx="10" fill="#e7f6ec" stroke="#cfd8e3"/>
+<path d="M526 508 l36 -40 l26 28 l22 -18 l32 30 z" fill="#ffffff" opacity="0.62"/>
+
+<!-- 引用：一条纯文字 -->
+<rect x="212" y="536" width="468" height="62" rx="12" fill="#f7f9fc" stroke="#e8eef6"/>
+<rect x="212" y="536" width="4" height="62" rx="2" fill="#8ab4ff"/>
+<text x="232" y="560" font-family='"Microsoft YaHei", system-ui' font-size="12.5" font-weight="600" fill="#8b949e">引用 白露 · 22:05</text>
+<text x="232" y="582" font-family='"Microsoft YaHei", system-ui' font-size="14" fill="#3f4a57">好，修完记得跑一遍 yarn build</text>
+
+<text x="700" y="640" font-family='"Segoe UI", system-ui' font-size="11.5" fill="#a3acb8" text-anchor="end">2026-11-20 22:07</text>
+<text x="60" y="640" font-family='"Segoe UI", system-ui' font-size="11" fill="#c0c7d1">chatclip · #A1025</text>
+</svg>

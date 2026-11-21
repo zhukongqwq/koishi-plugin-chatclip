@@ -1,0 +1,269 @@
+import { Clip, ElementJSON, Snapshot } from '../db'
+import { formatClipId } from '../db'
+import { Config } from '../config'
+
+const FONT = `-apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif`
+
+export function escapeHtml(text: string) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+export function formatTime(date?: Date | string) {
+  if (!date) return ''
+  const value = new Date(date)
+  if (isNaN(value.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${pad(value.getHours())}:${pad(value.getMinutes())}`
+}
+
+const PALETTE = ['#5b7cfa', '#f0a04b', '#57b894', '#c56cd6', '#e2647a', '#4aa3c7']
+
+function colorOf(seed: string) {
+  let hash = 0
+  for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) % 9973
+  return PALETTE[hash % PALETTE.length]
+}
+
+function initialOf(name: string) {
+  return (name || '?').trim().slice(0, 1)
+}
+
+function avatarHtml(snapshot: Snapshot, size: number) {
+  const name = snapshot.nickname || snapshot.username || snapshot.userId || '?'
+  const style = `width:${size}px;height:${size}px;border-radius:50%;`
+  if (snapshot.avatar) {
+    return `<img class="avatar" style="${style}" src="${escapeHtml(snapshot.avatar)}"/>`
+  }
+  const bg = colorOf(snapshot.userId || name)
+  return `<div class="avatar" style="${style}background:${bg};font-size:${Math.round(size * 0.44)}px">${escapeHtml(initialOf(name))}</div>`
+}
+
+const MEDIA_TYPES = new Set(['img', 'image', 'video', 'audio', 'record', 'file'])
+
+interface Split {
+  text: string
+  media: ElementJSON[]
+  quoted: ElementJSON | null
+  forwards: string[]
+}
+
+function splitElements(elements: ElementJSON[]): Split {
+  const split: Split = { text: '', media: [], quoted: null, forwards: [] }
+  const walk = (list: ElementJSON[]) => {
+    for (const el of list) {
+      if (el.type === 'text') {
+        split.text += el.attrs.content ?? ''
+      } else if (el.type === 'at') {
+        split.text += `@${el.attrs.name || el.attrs.id || ''} `
+      } else if (MEDIA_TYPES.has(el.type)) {
+        split.media.push(el)
+      } else if (el.type === 'quote') {
+        split.quoted = el
+      } else if (el.type === 'forward') {
+        split.forwards.push(String(el.attrs.id ?? ''))
+      } else if (el.type === 'face') {
+        split.text += el.attrs.name || '🙂'
+      } else if (Array.isArray(el.children) && el.children.length) {
+        walk(el.children.filter((child): child is ElementJSON => typeof child !== 'string'))
+      }
+    }
+  }
+  walk(elements)
+  split.text = split.text.replace(/\n{3,}/g, '\n\n').trim()
+  return split
+}
+
+function textHtml(text: string) {
+  return escapeHtml(text).replace(/\n/g, '<br/>')
+}
+
+function mediaHtml(media: ElementJSON[], maxHeight: number) {
+  if (!media.length) return ''
+  const items = media.map((el) => {
+    const src = el.attrs.src || el.attrs.url || ''
+    if (!src) return ''
+    if (el.type === 'video') {
+      return `<video class="media-item" style="max-height:${maxHeight}px" src="${escapeHtml(src)}"></video>`
+    }
+    if (el.type === 'file') {
+      const title = el.attrs.title || el.attrs.name || '文件'
+      return `<div class="file-chip">📎 ${escapeHtml(title)}</div>`
+    }
+    if (el.type === 'audio' || el.type === 'record') {
+      return `<div class="file-chip">🎙 语音</div>`
+    }
+    return `<img class="media-item" style="max-height:${maxHeight}px" src="${escapeHtml(src)}"/>`
+  }).filter(Boolean)
+
+  if (!items.length) return ''
+  const count = items.length
+  if (count === 1) return `<div class="media media-1">${items[0]}</div>`
+  if (count === 2) return `<div class="media media-2">${items.join('')}</div>`
+  return `<div class="media media-grid">${items.slice(0, 6).join('')}${count > 6 ? `<div class="more">+${count - 6}</div>` : ''}</div>`
+}
+
+function quoteBlock(quote: Snapshot | undefined, compact: boolean) {
+  if (!quote) return ''
+  const split = splitElements(quote.elements)
+  const name = quote.nickname || quote.username || quote.userId || '未知'
+  const text = split.text.length > 90 ? split.text.slice(0, 90) + '…' : split.text
+  const thumb = split.media.find((el) => (el.type === 'img' || el.type === 'image') && (el.attrs.src || el.attrs.url))
+  const thumbHtml = thumb
+    ? `<img class="quote-thumb" src="${escapeHtml(thumb.attrs.src || thumb.attrs.url)}"/>`
+    : ''
+  return `<div class="quote ${compact ? 'quote-compact' : ''}">
+    <div class="quote-body">
+      <div class="quote-head">${escapeHtml(name)} · ${formatTime(quote.timestamp)}</div>
+      <div class="quote-text">${textHtml(text) || '<span class="dim">[无文字内容]</span>'}</div>
+    </div>
+    ${thumbHtml}
+  </div>`
+}
+
+function forwardGroup(children: Snapshot[]) {
+  if (!children.length) return ''
+  const lines = children.map((child) => {
+    const split = splitElements(child.elements)
+    const name = child.nickname || child.username || '未知'
+    const text = split.text.length > 60 ? split.text.slice(0, 60) + '…' : split.text
+    const extra = split.media.length ? ` [${split.media.length} 个附件]` : ''
+    return `<div class="fwd-row"><span class="fwd-name">${escapeHtml(name)}</span><span class="fwd-text">${textHtml(text) || '<span class="dim">[内容]</span>'}${extra}</span></div>`
+  }).join('')
+  return `<div class="fwd">
+    <div class="fwd-head">群聊的聊天记录 <span class="dim">· ${children.length} 条</span></div>
+    ${lines}
+  </div>`
+}
+
+const BASE_STYLE = `
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #eef1f6; font-family: ${FONT}; -webkit-font-smoothing: antialiased; }
+.card { background: #fff; border-radius: 24px; padding: 32px 36px; color: #1f2430; box-shadow: 0 8px 28px rgba(31, 36, 48, .08); }
+.avatar { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; object-fit: cover; flex: none; }
+.dim { color: #98a2b3; }
+.media { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; margin-top: 16px; }
+.media-1 { display: block; }
+.media-item { max-width: 100%; border-radius: 14px; border: 1px solid #e7ebf3; display: block; }
+.media-2 .media-item { width: calc(50% - 5px); height: 170px; object-fit: cover; }
+.media-grid .media-item, .media-grid video { width: calc(33.33% - 7px); height: 140px; object-fit: cover; }
+.media-grid .file-chip, .media-2 .file-chip { height: 140px; justify-content: center; }
+.more { display: flex; align-items: center; justify-content: center; width: calc(33.33% - 7px); height: 140px; border-radius: 14px; background: #f1f4fa; color: #98a2b3; font-size: 18px; }
+.file-chip { display: inline-flex; align-items: center; gap: 6px; background: #f5f7fb; border: 1px solid #e7ebf3; border-radius: 10px; padding: 8px 12px; font-size: 16px; color: #475467; }
+.quote { display: flex; gap: 12px; align-items: flex-start; background: #f7f9fc; border-left: 4px solid #5b7cfa; border-radius: 12px; padding: 14px 16px; margin-top: 18px; }
+.quote-body { flex: 1; min-width: 0; }
+.quote-head { font-size: 15px; color: #667085; margin-bottom: 6px; }
+.quote-text { font-size: 17px; color: #475467; line-height: 1.5; }
+.quote-thumb { width: 108px; height: 108px; object-fit: cover; border-radius: 10px; border: 1px solid #e7ebf3; flex: none; }
+.fwd { border: 1px solid #e7ebf3; border-radius: 14px; padding: 14px 16px; margin-top: 14px; }
+.fwd-head { font-size: 17px; font-weight: 600; margin-bottom: 10px; }
+.fwd-row { display: flex; gap: 8px; font-size: 16px; line-height: 1.6; color: #475467; }
+.fwd-name { color: #667085; flex: none; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fwd-text { flex: 1; min-width: 0; }
+.foot { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 14px; border-top: 1px solid #eef1f6; font-size: 14px; color: #98a2b3; }
+`
+
+function page(style: string, body: string, width: number) {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_STYLE}${style}</style></head><body><div class="card" style="width:${width}px">${body}</div></body></html>`
+}
+
+/** 单条消息：大字卡。 */
+export function buildCard(clip: Clip, main: Snapshot, quote: Snapshot | undefined, config: Config) {
+  const split = splitElements(main.elements)
+  const name = main.nickname || main.username || main.userId || '未知'
+  const length = split.text.length
+  const fontSize = length <= 30 ? 32 : length <= 80 ? 27 : 22
+  const body = `
+  <div class="top">
+    ${avatarHtml(main, 110)}
+    <div class="main">
+      <div class="mark">“</div>
+      <div class="text" style="font-size:${fontSize}px">${textHtml(split.text) || '<span class="dim">[无文字内容]</span>'}${split.text ? '<span class="mark close">”</span>' : ''}</div>
+      <div class="sign">—— ${escapeHtml(name)}（${escapeHtml(main.username || name)}）</div>
+      <div class="uid">(userId: ${escapeHtml(main.userId || '未知')})</div>
+    </div>
+  </div>
+  ${quoteBlock(quote, false)}
+  ${mediaHtml(split.media, 200)}
+  <div class="foot"><span>chatclip · ${formatClipId(clip.id)}</span><span>${formatTime(main.timestamp)}</span></div>`
+  const style = `
+.top { display: flex; gap: 26px; align-items: flex-start; }
+.main { flex: 1; min-width: 0; }
+.mark { font-size: 40px; line-height: 1; color: #dfe4ee; font-family: Georgia, serif; }
+.mark.close { font-size: 30px; margin-left: 2px; }
+.text { font-weight: 700; line-height: 1.42; letter-spacing: .2px; margin-top: 4px; word-break: break-word; }
+.sign { margin-top: 18px; font-size: 21px; color: #344054; }
+.uid { margin-top: 6px; font-size: 16px; color: #98a2b3; }
+`
+  return page(style, body, config.imageWidth)
+}
+
+/** 多条消息：聊天气泡。 */
+export function buildBubble(clip: Clip, messages: Snapshot[], config: Config) {
+  const main = messages[0]
+  const quote = messages.find((item) => item.role === 'quote')
+  const forwards = messages.filter((item) => item.role === 'forward')
+  const source = clip.meta?.channelName || clip.meta?.guildName || (clip.meta?.kind === 'private' ? '私聊' : `频道 ${clip.channelId}`)
+
+  const rows: string[] = []
+  const mainSplit = splitElements(main.elements)
+  // 纯合并转发的消息没有正文，直接展示转发卡片，避免出现空气泡
+  const skipMain = !mainSplit.text && !mainSplit.media.length && forwards.length > 0
+  if (!skipMain) {
+    rows.push(rowHtml(main, quote, mainSplit))
+  } else {
+    rows.push(`<div class="row">
+      <div class="col">
+        <div class="name">${escapeHtml(main.nickname || main.username || main.userId || '未知')}<span class="time">${formatTime(main.timestamp)}</span></div>
+        <div class="bubblebody fwd-note">转发了一条聊天记录</div>
+      </div>
+    </div>`)
+  }
+
+  if (forwards.length) {
+    rows.push(`<div class="row"><div class="avatar ghost"></div><div class="col">${forwardGroup(forwards)}</div></div>`)
+  }
+
+  const body = `
+  <div class="bhead">
+    <div><div class="btitle">聊天记录收藏</div><div class="bmeta">${escapeHtml(source)} · ${formatTime(clip.createdAt)} · 共 ${clip.messageCount} 条</div></div>
+    <div class="pill">${escapeHtml(visibilityLabel(clip.visibility))}</div>
+  </div>
+  <div class="rows">${rows.join('')}</div>
+  <div class="foot"><span>chatclip · ${formatClipId(clip.id)}</span><span>${formatTime(clip.createdAt)}</span></div>`
+  const style = `
+.bhead { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 1px solid #eef1f6; }
+.btitle { font-size: 24px; font-weight: 700; }
+.bmeta { font-size: 15px; color: #98a2b3; margin-top: 6px; }
+.pill { font-size: 15px; color: #5b7cfa; background: #eef2ff; border-radius: 999px; padding: 8px 16px; flex: none; margin-left: 16px; }
+.rows { padding-top: 8px; }
+.row { display: flex; gap: 14px; padding: 18px 0; }
+.row + .row { border-top: 1px solid #f4f6fa; }
+.row .avatar { width: 46px; height: 46px; }
+.col { flex: 1; min-width: 0; }
+.name { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+.name .time { font-weight: 400; font-size: 14px; color: #98a2b3; margin-left: 8px; }
+.bubblebody { background: #f7f9fc; border-radius: 14px; padding: 14px 16px; font-size: 18px; line-height: 1.55; word-break: break-word; }
+.ghost { background: transparent !important; }
+.fwd-note { color: #98a2b3; }
+`
+  return page(style, body, config.imageWidth)
+}
+
+function visibilityLabel(visibility: string) {
+  return visibility === 'public' ? '公开' : visibility === 'channel' ? '本群可见' : '仅自己可见'
+}
+
+function rowHtml(snapshot: Snapshot, quote: Snapshot | undefined, split: Split) {
+  const name = snapshot.nickname || snapshot.username || snapshot.userId || '未知'
+  return `<div class="row">
+    ${avatarHtml(snapshot, 46)}
+    <div class="col">
+      <div class="name">${escapeHtml(name)}<span class="time">${formatTime(snapshot.timestamp)}</span></div>
+      <div class="bubblebody">${textHtml(split.text) || '<span class="dim">[无文字内容]</span>'}${quoteBlock(quote, true)}${mediaHtml(split.media, 220)}</div>
+    </div>
+  </div>`
+}

@@ -8,6 +8,11 @@ yarn-debug.log
 yarn-error.log
 tsconfig.tsbuildinfo
 
+# 本地自测产物
+*.log
+.tmp-smoke
+.tmp-download
+
 .eslintcache
 .DS_Store
 .idea
@@ -16,3 +21,9 @@ tsconfig.tsbuildinfo
 *.ntvs*
 *.njsproj
 *.sln
+
+# 预览图与截图（设计稿是 SVG，会提交；渲染产物不入库）
+.preview/
+docs/preview/
+docs/check-*.png
+docs/mockups/*.png

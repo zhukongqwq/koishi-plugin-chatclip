@@ -5,8 +5,9 @@ import 'virtual:uno.css'
 
 export default (ctx: Context) => {
   ctx.page({
-    name: '扩展页面',
-    path: '/custom-page',
+    name: '聊天收藏',
+    path: '/chatclip',
+    icon: 'clipboard',
     component: Page,
   })
 }
