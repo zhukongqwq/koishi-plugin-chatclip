@@ -153,11 +153,13 @@ interface Config {
   allowPrivate: boolean     // true
   allowGroup: boolean       // true
   storage: boolean          // true 是否转存到 assets
-  reaction: boolean         // false emoji 快捷收藏
-  reactionEmoji: string     // 📌
+  maxAssetSize: number      // 10   附件大小上限（MB）
+  maxLocalImageSize: number // 5    本地转存图片大小上限（MB），0 = 不限
+  textImageLimit: number    // 6    --text 跟发图片张数
   pageSize: number          // 10
   maxClipsPerUser: number   // 0 = 无限
   imageWidth: number        // 720
+  fontFamily: string        // 系统中文栈
 }
 ```
 

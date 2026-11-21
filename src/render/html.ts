@@ -1,8 +1,7 @@
 import { Clip, ElementJSON, Snapshot } from '../db'
 import { clipNo, formatClipId } from '../db'
-import { Config } from '../config'
+import { Config, DEFAULT_FONT } from '../config'
 
-const FONT = `-apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif`
 
 export function escapeHtml(text: string) {
   return String(text ?? '')
@@ -141,9 +140,9 @@ function forwardGroup(children: Snapshot[]) {
   </div>`
 }
 
-const BASE_STYLE = `
+const baseStyle = (font: string) => `
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #eef1f6; font-family: ${FONT}; -webkit-font-smoothing: antialiased; }
+body { background: #eef1f6; font-family: ${font}; -webkit-font-smoothing: antialiased; }
 .card { background: #fff; border-radius: 24px; padding: 32px 36px; color: #1f2430; box-shadow: 0 8px 28px rgba(31, 36, 48, .08); }
 .avatar { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; object-fit: cover; flex: none; }
 .dim { color: #98a2b3; }
@@ -175,8 +174,8 @@ body { background: #eef1f6; font-family: ${FONT}; -webkit-font-smoothing: antial
 .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 14px; border-top: 1px solid #eef1f6; font-size: 14px; color: #98a2b3; }
 `
 
-function page(style: string, body: string, width: number) {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_STYLE}${style}</style></head><body><div class="card" style="width:${width}px">${body}</div></body></html>`
+function page(style: string, body: string, width: number, font = DEFAULT_FONT) {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${baseStyle(font)}${style}</style></head><body><div class="card" style="width:${width}px">${body}</div></body></html>`
 }
 
 /** 单条消息：大字卡。 */
@@ -208,7 +207,7 @@ export function buildCard(clip: Clip, main: Snapshot, quote: Snapshot | undefine
 .sign { margin-top: 18px; font-size: 21px; color: #344054; }
 .uid { margin-top: 6px; font-size: 16px; color: #98a2b3; }
 `
-  return page(style, body, config.imageWidth)
+  return page(style, body, config.imageWidth, config.fontFamily)
 }
 
 /** 多条消息：聊天气泡。 */
@@ -260,7 +259,7 @@ export function buildBubble(clip: Clip, messages: Snapshot[], config: Config) {
 .ghost { background: transparent !important; }
 .fwd-note { color: #98a2b3; }
 `
-  return page(style, body, config.imageWidth)
+  return page(style, body, config.imageWidth, config.fontFamily)
 }
 
 function visibilityLabel(visibility: string) {

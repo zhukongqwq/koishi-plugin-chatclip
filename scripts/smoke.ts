@@ -4,12 +4,14 @@
  */
 import { App, h } from 'koishi'
 import { mkdirSync, rmSync, writeFileSync } from 'fs'
+import { createServer } from 'http'
 import { resolve } from 'path'
 import * as chatclip from '../src'
 import { collectClip, persistClip, loadClip, type CollectSource } from '../src/collect'
 import { queryClips, purgeClips, resolveClipRef, clipNo, TABLES } from '../src/db'
 import { renderClip } from '../src/render'
 import { renderDetail, renderList } from '../src/render/text'
+import { DEFAULT_FONT } from '../src/config'
 
 const root = resolve(__dirname, '../.tmp-smoke')
 
@@ -91,6 +93,15 @@ async function run() {
   rmSync(root, { recursive: true, force: true })
   mkdirSync(root, { recursive: true })
 
+  // 大图用例需要真实 http 地址：data: URL 走内联分支，不会进转存逻辑
+  const bigSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600">' +
+    '<rect width="900" height="600" fill="#6673ee"/>' + '<!--' + 'x'.repeat(300_000) + '--></svg>'
+  const fileServer = createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'image/svg+xml' })
+    res.end(bigSvg)
+  })
+  await new Promise<void>((done) => fileServer.listen(5398, '127.0.0.1', done))
+
   const app = new App({ root } as any)
   app.plugin(load('@koishijs/plugin-http'), {})
   app.plugin(load('@koishijs/plugin-server'), { port: 5399, host: '127.0.0.1' })
@@ -137,6 +148,25 @@ async function run() {
     'private',
   )
   console.log('[quote loop] messages =', looped.messages.length, '(1 = 只有主消息)')
+
+  // 3.7 本地转存大小上限：上限设成 0.00001 MB，任何图片都超限，应回退成原链接并记一条 degraded
+  const tight = { ...config2(), maxLocalImageSize: 0.00001 }
+  const oversized = await collectClip(
+    ctx,
+    tight,
+    makeSource({
+      id: 'msg-big-1',
+      content: '一张大图 [图片]',
+      elements: [
+        h.text('一张大图 '),
+        h('img', { src: 'http://127.0.0.1:5398/big.svg' }),
+      ],
+      user: { id: '10001', name: 'bailu', nickname: '白露' },
+      timestamp: new Date(now - 30_000),
+    }),
+    'private',
+  )
+  console.log('[oversize] attachments =', oversized.attachments.length, 'note =', oversized.attachments[0]?.note, 'degraded =', oversized.degraded)
 
   // 4. 查询
   const listed = await queryClips(ctx, { includeDeleted: true }, 1, 10)
@@ -213,7 +243,9 @@ function config2() {
     allowGroup: true,
     storage: true,
     maxAssetSize: 10,
-  textImageLimit: 6,
+    maxLocalImageSize: 5,
+    fontFamily: DEFAULT_FONT,
+    textImageLimit: 6,
     pageSize: 10,
     maxClipsPerUser: 0,
     imageWidth: 720,

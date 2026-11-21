@@ -1,5 +1,8 @@
 import { Schema } from 'koishi'
 
+/** 默认字体：优先系统中文字体，渲染中文不会掉成方块。 */
+export const DEFAULT_FONT = `-apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif`
+
 export interface Config {
   /** 默认可见性，成员可用 -s 覆盖 */
   defaultVisibility: 'private' | 'channel' | 'public'
@@ -15,6 +18,10 @@ export interface Config {
   storage: boolean
   /** 单个附件大小上限（MB），超过则只留原链接 */
   maxAssetSize: number
+  /** 转存到本地 assets 的图片大小上限（MB），0 = 不限 */
+  maxLocalImageSize: number
+  /** 渲染使用的字体族 */
+  fontFamily: string
   /** clip show --text 时最多跟发几张图片，0 = 不跟发 */
   textImageLimit: number
   pageSize: number
@@ -37,6 +44,8 @@ export const Config: Schema<Config> = Schema.object({
   allowGroup: Schema.boolean().default(true).description('允许在群聊中使用。'),
   storage: Schema.boolean().default(true).description('把图片转存到 assets；关闭则只保存原链接。'),
   maxAssetSize: Schema.natural().min(1).default(10).description('单个附件大小上限（MB）。'),
+  maxLocalImageSize: Schema.natural().min(0).default(5).description('转存到本地 assets 的图片大小上限（MB），0 表示不限；超过只保留原链接。'),
+  fontFamily: Schema.string().default(DEFAULT_FONT).description('图片渲染使用的字体族（CSS font-family）。'),
   textImageLimit: Schema.natural().min(0).max(20).default(6).description('clip show --text 时最多一起发送几张图片，0 表示不发送。'),
   pageSize: Schema.natural().min(1).max(50).default(10).description('列表每页条数。'),
   maxClipsPerUser: Schema.natural().default(0).description('每人收藏上限，0 表示不限。'),

@@ -68,6 +68,8 @@ export interface PendingAttachment {
   filename?: string
   size?: number
   expired: boolean
+  /** 转存被跳过的原因，例如 image-too-large */
+  note?: string
 }
 
 export interface PendingSnapshot {
@@ -130,6 +132,20 @@ async function persistMedia(ctx: Context, config: Config, el: Element): Promise<
     return base
   }
   try {
+    // 本地转存前先自己量一下体积：超过上限就只留原链接，别把 assets 撑爆
+    const isImage = el.type === 'img' || el.type === 'image'
+    if (isImage && config.maxLocalImageSize > 0) {
+      try {
+        const file = await ctx.http.file(url)
+        const size = (file.data as ArrayBuffer).byteLength
+        if (size > config.maxLocalImageSize * 1024 * 1024) {
+          el.attrs.src = url
+          return { ...base, size, expired: false, note: 'image-too-large' }
+        }
+      } catch {
+        // 量不出来就照常走 upload，它的失败分支会标 expired
+      }
+    }
     // assets.upload 内部会自己 ctx.http.file 下载，这里不做二次下载
     const uploaded = await ctx.assets.upload(url, '')
     if (!uploaded) return { ...base, expired: true }
@@ -271,6 +287,11 @@ async function buildSnapshot(
 
   for (const row of pending) attachments.push({ ...row, index })
 
+  const degraded = [...(options.degraded ?? [])]
+  for (const row of pending) {
+    if (row.note && !degraded.includes(row.note)) degraded.push(row.note)
+  }
+
   return {
     role: options.role,
     quoteDepth: options.quoteDepth,
@@ -283,7 +304,7 @@ async function buildSnapshot(
     content: elementsText(elements),
     elements: elements.map(serialize),
     timestamp: options.timestamp,
-    degraded: options.degraded ?? [],
+    degraded,
   }
 }
 
@@ -439,7 +460,7 @@ export async function collectClip(
     ownerId: source.ownerId,
     ownerName: source.ownerName,
     visibility,
-    degraded: [...new Set(degraded)],
+    degraded: [...new Set([...degraded, ...messages.flatMap((item) => item.degraded ?? [])])],
     meta: {
       kind: source.guildId ? 'group' : 'private',
       guildName: source.guildName,
@@ -526,6 +547,7 @@ export async function persistClip(ctx: Context, data: CollectedClip): Promise<Pe
       filename: row.filename,
       size: row.size,
       expired: row.expired,
+      note: row.note,
     })
   }
 

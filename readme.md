@@ -64,10 +64,12 @@ npm i koishi-plugin-chatclip
 | `allowPrivate` / `allowGroup` | `true` | 是否允许私聊 / 群聊收藏 |
 | `storage` | `true` | 是否把附件转存到 assets |
 | `maxAssetSize` | `10MB` | 超过这个大小的附件不转存，只留原 URL |
+| `maxLocalImageSize` | `5MB` | 转存到本地 assets 的图片大小上限，超过只留原链接并标 `image-too-large`；0 表示不限 |
 | `textImageLimit` | `6` | `clip show --text` 时最多一起发送几张图片，0 表示不发送 |
 | `pageSize` | `10` | 列表每页条数 |
 | `maxClipsPerUser` | `0` | 每人收藏上限，0 表示不限制 |
 | `imageWidth` | `720` | 渲染图片宽度 |
+| `fontFamily` | 系统中文栈 | 渲染图片使用的 CSS `font-family`，可填任意本地字体名 |
 
 ## 控制台
 

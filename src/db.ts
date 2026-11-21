@@ -63,6 +63,8 @@ export interface Attachment {
   filename?: string
   size?: number
   expired: boolean
+  /** 转存被跳过的原因，例如 image-too-large */
+  note?: string
 }
 
 declare module 'koishi' {
@@ -145,6 +147,7 @@ export function applyTables(ctx: Context) {
     filename: 'string',
     size: 'unsigned',
     expired: 'boolean',
+    note: 'string',
   }, {
     autoInc: true,
     primary: 'id',
