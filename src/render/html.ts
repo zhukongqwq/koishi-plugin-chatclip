@@ -178,10 +178,11 @@ export function buildCard(clip: Clip, main: Snapshot, quote: Snapshot | undefine
   const fontSize = length <= 30 ? 32 : length <= 80 ? 27 : 22
   const body = `
   <div class="top">
-    ${avatarHtml(main, 80)}
+    ${avatarHtml(main, 48)}
     <div class="main">
       <div class="mark">“</div>
-      <div class="text" style="font-size:${fontSize}px">${textHtml(split.text) || '<span class="dim">[无文字内容]</span>'}${split.text ? '<span class="mark close">”</span>' : ''}</div>
+      <div class="text" style="font-size:${fontSize}px">${textHtml(split.text) || '<span class="dim">[无文字内容]</span>'}</div>
+      ${split.text ? '<div class="mark close">”</div>' : ''}
       <div class="sign">—— ${escapeHtml(name)}（${escapeHtml(main.username || name)}）</div>
       <div class="uid">(userId: ${escapeHtml(main.userId || '未知')})</div>
     </div>
@@ -190,10 +191,10 @@ export function buildCard(clip: Clip, main: Snapshot, quote: Snapshot | undefine
   ${mediaHtml(split.media, 200)}
   <div class="foot"><span>chatclip · ${formatClipId(clipNo(clip))}</span><span>${formatTime(main.timestamp)}</span></div>`
   const style = `
-.top { display: flex; gap: 26px; align-items: flex-start; }
+.top { display: flex; gap: 18px; align-items: flex-start; }
 .main { flex: 1; min-width: 0; }
 .mark { font-size: 40px; line-height: 1; color: #dfe4ee; font-family: Georgia, serif; }
-.mark.close { font-size: 30px; margin-left: 2px; }
+.mark.close { font-size: 34px; margin-top: 2px; }
 .text { font-weight: 700; line-height: 1.42; letter-spacing: .2px; margin-top: 4px; word-break: break-word; }
 .sign { margin-top: 18px; font-size: 21px; color: #344054; }
 .uid { margin-top: 6px; font-size: 16px; color: #98a2b3; }
@@ -242,7 +243,7 @@ export function buildBubble(clip: Clip, messages: Snapshot[], config: Config) {
 .rows { padding-top: 8px; }
 .row { display: flex; gap: 14px; padding: 18px 0; }
 .row + .row { border-top: 1px solid #f4f6fa; }
-.row .avatar { width: 38px; height: 38px; }
+.row .avatar { width: 30px; height: 30px; }
 .col { flex: 1; min-width: 0; }
 .name { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
 .name .time { font-weight: 400; font-size: 14px; color: #98a2b3; margin-left: 8px; }
@@ -260,7 +261,7 @@ function visibilityLabel(visibility: string) {
 function rowHtml(snapshot: Snapshot, quote: Snapshot | undefined, split: Split) {
   const name = snapshot.nickname || snapshot.username || snapshot.userId || '未知'
   return `<div class="row">
-    ${avatarHtml(snapshot, 46)}
+    ${avatarHtml(snapshot, 30)}
     <div class="col">
       <div class="name">${escapeHtml(name)}<span class="time">${formatTime(snapshot.timestamp)}</span></div>
       <div class="bubblebody">${textHtml(split.text) || '<span class="dim">[无文字内容]</span>'}${quoteBlock(quote, true)}${mediaHtml(split.media, 220)}</div>

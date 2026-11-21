@@ -194,9 +194,19 @@ export function applyCommands(ctx: Context, config: Config) {
         if (!images.length) return text
         const limited = images.slice(0, 6)
         const rest = images.length - limited.length
+        // 平台侧是另一台机器（如 NapCat 在远端），localhost 的资源它拉不到，
+        // 所以先自己下载再以 base64 发出；下载失败才退回原始 URL。
+        const elements = await Promise.all(limited.map(async (url) => {
+          try {
+            const file = await ctx.http.file(url)
+            return h.image(Buffer.from(file.data as ArrayBuffer), file.type || 'image/png')
+          } catch {
+            return h.image(url)
+          }
+        }))
         return [
           rest > 0 ? `${text}\n（还有 ${rest} 张图片未发送）` : text,
-          ...limited.map((url) => h.image(url)),
+          ...elements,
         ]
       }
       const force = options.card ? 'card' : options.bubble ? 'bubble' : undefined

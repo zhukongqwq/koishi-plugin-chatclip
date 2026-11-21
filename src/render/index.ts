@@ -40,7 +40,9 @@ export async function renderClip(
         height: 320,
         deviceScaleFactor: 2,
       })
-      await page.waitForNetworkIdle()
+      // 外部资源（头像、图片）加载慢时 waitForNetworkIdle 会超时抛错，
+      // 一旦抛出 puppeteer 插件就跳过 page.close()，页面会一直留在浏览器里
+      await page.waitForNetworkIdle({ idleTime: 200, timeout: 5000 }).catch(() => {})
       const handle = await page.$('.card')
       return next(handle ?? undefined)
     })
