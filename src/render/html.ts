@@ -1,5 +1,5 @@
 import { Clip, ElementJSON, Snapshot } from '../db'
-import { formatClipId } from '../db'
+import { clipNo, formatClipId } from '../db'
 import { Config } from '../config'
 
 const FONT = `-apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif`
@@ -188,7 +188,7 @@ export function buildCard(clip: Clip, main: Snapshot, quote: Snapshot | undefine
   </div>
   ${quoteBlock(quote, false)}
   ${mediaHtml(split.media, 200)}
-  <div class="foot"><span>chatclip · ${formatClipId(clip.id)}</span><span>${formatTime(main.timestamp)}</span></div>`
+  <div class="foot"><span>chatclip · ${formatClipId(clipNo(clip))}</span><span>${formatTime(main.timestamp)}</span></div>`
   const style = `
 .top { display: flex; gap: 26px; align-items: flex-start; }
 .main { flex: 1; min-width: 0; }
@@ -233,7 +233,7 @@ export function buildBubble(clip: Clip, messages: Snapshot[], config: Config) {
     <div class="pill">${escapeHtml(visibilityLabel(clip.visibility))}</div>
   </div>
   <div class="rows">${rows.join('')}</div>
-  <div class="foot"><span>chatclip · ${formatClipId(clip.id)}</span><span>${formatTime(clip.createdAt)}</span></div>`
+  <div class="foot"><span>chatclip · ${formatClipId(clipNo(clip))}</span><span>${formatTime(clip.createdAt)}</span></div>`
   const style = `
 .bhead { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 1px solid #eef1f6; }
 .btitle { font-size: 24px; font-weight: 700; }

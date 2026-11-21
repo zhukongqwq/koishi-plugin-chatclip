@@ -1,7 +1,7 @@
 import { Context, Element, Session, h } from 'koishi'
 import { createHash } from 'crypto'
 import { Config } from './config'
-import { Clip, ClipMeta, ElementJSON, Role, Snapshot, TABLES, Visibility } from './db'
+import { Clip, ClipMeta, ElementJSON, Role, Snapshot, TABLES, Visibility, nextClipNo } from './db'
 
 const CONTENT_LIMIT = 4000
 
@@ -388,18 +388,20 @@ export async function collectClip(
     }
   }
 
-  // 引用链
+  // 引用链：从被收藏消息自身的引用开始往上爬。
+  // 注意必须先查重再入队：有些适配器会把「这条消息自己」放进 quote（或 quote 指回主消息），
+  // 不查重就会把同一条消息存两遍，条数和附件都会翻倍。
   let quote: any = source.quote ?? message.quote
   let depth = 1
   const visited = new Set<string>([messageId])
   const queue: any[] = []
   while (quote && depth <= config.quoteDepth) {
+    const currentId = String(quote.id ?? '')
+    if (currentId && visited.has(currentId)) break
+    if (currentId) visited.add(currentId)
     queue.push(quote)
     const next = quote.quote
     if (!next) break
-    const nextId = String(next.id ?? '')
-    if (nextId && visited.has(nextId)) break
-    if (nextId) visited.add(nextId)
     quote = next
     depth++
   }
@@ -453,6 +455,15 @@ export interface PersistResult {
   existing: boolean
 }
 
+/**
+ * 「条数」的口径：引用链、转发展开的每一条各算一条；
+ * 主消息只有在**带文字**（或没有转发）时才算一条 —— 纯转发的空壳不计。
+ */
+export function countMessages(messages: { role: Role, content: string }[]): number {
+  const hasForward = messages.some((message) => message.role === 'forward')
+  return messages.filter((message) => !(message.role === 'main' && hasForward && !message.content.trim())).length
+}
+
 /** 幂等写入：唯一键命中就返回已有记录。 */
 export async function persistClip(ctx: Context, data: CollectedClip): Promise<PersistResult> {
   const key = {
@@ -468,10 +479,11 @@ export async function persistClip(ctx: Context, data: CollectedClip): Promise<Pe
   try {
     const created = await ctx.database.create(TABLES.clip, {
       ...key,
+      no: await nextClipNo(ctx),
       guildId: data.guildId,
       ownerName: data.ownerName,
       visibility: data.visibility,
-      messageCount: data.messages.length,
+      messageCount: countMessages(data.messages),
       createdAt: new Date(),
       degraded: data.degraded,
       meta: data.meta,

@@ -1,7 +1,7 @@
 import { Context } from 'koishi'
 import { resolve } from 'path'
 import { Config } from './config'
-import { applyTables } from './db'
+import { applyTables, renumberClips } from './db'
 import { applyCommands } from './commands'
 import { applyConsole } from './console'
 
@@ -31,6 +31,11 @@ export function apply(ctx: Context, config: Config) {
 
   applyTables(ctx)
   applyCommands(ctx, config)
+
+  // 老数据（还没有 no 列的版本）需要补一次展示编号，之后由 purgeClips 维护连续性
+  ctx.on('ready', () => {
+    renumberClips(ctx).catch((error) => ctx.logger('chatclip').warn('补编号失败：%s', error?.message ?? error))
+  })
 
   ctx.inject(['console'], (ctx) => {
     applyConsole(ctx, config)

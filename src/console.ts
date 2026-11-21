@@ -1,6 +1,6 @@
 import { Context } from 'koishi'
 import { Config } from './config'
-import { Clip, Snapshot, TABLES, formatClipId, parseClipId, purgeClips, queryClips } from './db'
+import { Clip, Snapshot, TABLES, clipNo, formatClipId, parseClipId, purgeClips, queryClips } from './db'
 import { loadClip } from './collect'
 import { buildHtml } from './render'
 import { summaryText, truncate, mediaTypes } from './render/text'
@@ -63,7 +63,7 @@ function toRow(clip: Clip, messages: Snapshot[]): ClipRow {
   const meta = (clip.meta ?? {}) as any
   return {
     id: clip.id,
-    key: formatClipId(clip.id),
+    key: formatClipId(clipNo(clip)),
     sender: main?.nickname || main?.username || clip.ownerName || '未知',
     preview: marks.length ? `${summary} · ${marks.join(' · ')}` : summary,
     messageCount: clip.messageCount,
@@ -126,7 +126,7 @@ export function applyConsole(ctx: Context, config: Config) {
       expired: !!row.expired,
     }))
     return {
-      clip: { ...loaded.clip, key: formatClipId(loaded.clip.id) },
+      clip: { ...loaded.clip, key: formatClipId(clipNo(loaded.clip)) },
       messages: loaded.messages,
       attachments,
     }

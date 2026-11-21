@@ -19,6 +19,8 @@ export interface ClipMeta {
 
 export interface Clip {
   id: number
+  /** 展示编号：1..N 连续，硬删除后会重排。id 是数据库主键，不对外露出。 */
+  no?: number
   platform: string
   channelId: string
   guildId?: string
@@ -84,6 +86,7 @@ export const TABLES = {
 export function applyTables(ctx: Context) {
   ctx.model.extend(TABLES.clip, {
     id: 'unsigned',
+    no: 'unsigned',
     platform: 'string',
     channelId: 'string',
     guildId: 'string',
@@ -276,7 +279,55 @@ export async function purgeClips(
   await ctx.database.remove(TABLES.message, { clipId: { $in: wanted } })
   await ctx.database.remove(TABLES.attachment, { clipId: { $in: wanted } })
   await ctx.database.remove(TABLES.clip, { id: { $in: wanted } })
+  await renumberClips(ctx)
   return { ids: wanted, skipped }
+}
+
+/**
+ * 把展示编号重排成 1..N（按收藏时间升序）。
+ * 硬删除后会留下空缺，这里补齐：删掉 #A0003 之后，原来的 #A0004 就变成 #A0003。
+ */
+export async function renumberClips(ctx: Context): Promise<number> {
+  const rows = await ctx.database.get(TABLES.clip, {}, {
+    fields: ['id', 'no', 'createdAt'],
+    sort: { createdAt: 'asc', id: 'asc' },
+  })
+  const patch = rows
+    .map((row, index) => ({ id: row.id, no: index + 1, current: row.no }))
+    .filter((row) => row.current !== row.no)
+    .map(({ id, no }) => ({ id, no }))
+  if (patch.length) {
+    await ctx.database.upsert(TABLES.clip, patch as any, ['id'])
+  }
+  return rows.length
+}
+
+/** 新收藏的展示编号 = 当前最大编号 + 1 */
+export async function nextClipNo(ctx: Context): Promise<number> {
+  const [row] = await ctx.database.get(TABLES.clip, {}, {
+    fields: ['no'],
+    sort: { no: 'desc' },
+    limit: 1,
+  })
+  return Number(row?.no ?? 0) + 1
+}
+
+/**
+ * `clip show` / `clip rm` / `clip export` 的入参：先按展示编号找，找不到再按主键找，
+ * 这样硬删除重排之后旧编号也不会指错人。
+ */
+export async function resolveClipRef(ctx: Context, input: string): Promise<Clip | undefined> {
+  const value = parseClipId(input)
+  if (!value) return undefined
+  const [byNo] = await ctx.database.get(TABLES.clip, { no: value })
+  if (byNo) return byNo as Clip
+  const [byId] = await ctx.database.get(TABLES.clip, { id: value })
+  return byId as Clip | undefined
+}
+
+/** 展示用编号：优先展示编号，老数据没有 no 时退回主键 */
+export function clipNo(clip: { no?: number, id: number }): number {
+  return Number(clip.no ?? clip.id)
 }
 
 /** `#A1031` / `A1031` / `a1031` / `1031` → 1031 */

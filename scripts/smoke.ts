@@ -7,7 +7,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import * as chatclip from '../src'
 import { collectClip, persistClip, loadClip, type CollectSource } from '../src/collect'
-import { queryClips, purgeClips, TABLES } from '../src/db'
+import { queryClips, purgeClips, resolveClipRef, clipNo, TABLES } from '../src/db'
 import { renderClip } from '../src/render'
 import { renderDetail, renderList } from '../src/render/text'
 
@@ -122,6 +122,22 @@ async function run() {
   const forwardClip = await persistClip(ctx, forwarded)
   console.log('[forward persist] id =', forwardClip.clip.id)
 
+  // 3.5 引用链去重：适配器把「主消息自己」塞进 quote 时不能重复存
+  const selfQuoted = await collectClip(
+    ctx,
+    config2(),
+    makeSource({ ...mainMessage, id: 'msg-self-1', quote: quote }, { quote: undefined }),
+    'private',
+  )
+  console.log('[self quote] messages =', selfQuoted.messages.length, '(2 = 主消息 + 一条引用)')
+  const looped = await collectClip(
+    ctx,
+    config2(),
+    makeSource({ ...mainMessage, id: 'msg-loop-1', quote: { ...quote, id: 'msg-loop-1' } }, { quote: undefined }),
+    'private',
+  )
+  console.log('[quote loop] messages =', looped.messages.length, '(1 = 只有主消息)')
+
   // 4. 查询
   const listed = await queryClips(ctx, { includeDeleted: true }, 1, 10)
   console.log('[query] total =', listed.total)
@@ -165,7 +181,13 @@ async function run() {
     }
   }
 
-  // 7. 回收站：软删除 → 只有软删除才能硬删除 → 清空
+  // 7. 编号：展示编号连续、按展示编号能查到、硬删除后自动补号
+  const before = await queryClips(ctx, { includeDeleted: true }, 1, 10)
+  console.log('[no]', before.items.map((clip) => clipNo(clip)).join(','))
+  const byNo = await resolveClipRef(ctx, '1')
+  console.log('[resolve 1] id =', byNo?.id, 'no =', byNo && clipNo(byNo))
+
+  // 8. 回收站：软删除 → 只有软删除才能硬删除 → 清空
   await ctx.database.set(TABLES.clip, { id: first.clip.id }, { deletedAt: new Date() })
   const recycle = await queryClips(ctx, { deletedOnly: true }, 1, 10)
   console.log('[recycle] soft-deleted =', recycle.total)
@@ -174,7 +196,7 @@ async function run() {
   const purged = await purgeClips(ctx, { all: true })
   console.log('[purge] recycle bin removed =', purged.ids.length)
   const remaining = await queryClips(ctx, { includeDeleted: true }, 1, 10)
-  console.log('[purge] remaining =', remaining.total)
+  console.log('[purge] remaining =', remaining.total, 'no =', remaining.items.map((clip) => clipNo(clip)).join(','))
 
   // puppeteer 的 dispose 会与 browser 关闭竞争，冒烟脚本直接退出即可
   process.exit(0)

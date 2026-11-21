@@ -1,4 +1,4 @@
-import { Clip, Snapshot, formatClipId } from '../db'
+import { Clip, Snapshot, clipNo, formatClipId } from '../db'
 import { formatTime } from './html'
 
 const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
@@ -95,14 +95,14 @@ export function renderList(items: ListItem[], options: {
   for (const item of items) {
     const { main, forwards } = splitMain(item.messages)
     const name = main?.nickname || main?.username || item.clip.ownerName || '未知'
-    lines.push(`${formatClipId(item.clip.id)} · ${truncate(name, 12)} · ${relativeTime(main?.timestamp ?? item.clip.createdAt)} · ${visibilityLabel(item.clip.visibility)}`)
+    lines.push(`${formatClipId(clipNo(item.clip))} · ${truncate(name, 12)} · ${relativeTime(main?.timestamp ?? item.clip.createdAt)} · ${visibilityLabel(item.clip.visibility)}`)
     lines.push(`  ${truncate(summaryText(main?.content, forwards.length > 0), 25)}`)
     const marks = markLine(item.messages)
     if (marks) lines.push(marks)
     lines.push('')
   }
   lines.push('────────────────────────────')
-  lines.push(`clip show ${formatClipId(items[0].clip.id)} 渲染单条 · clip list ${options.page + 1} 下一页`)
+  lines.push(`clip show ${formatClipId(clipNo(items[0].clip))} 渲染单条 · clip list ${options.page + 1} 下一页`)
   return lines.join('\n').trimEnd()
 }
 
@@ -111,7 +111,7 @@ export function renderDetail(clip: Clip, messages: Snapshot[], attachmentCount: 
   const name = main?.nickname || main?.username || clip.ownerName || '未知'
   const source = clip.meta?.channelName || clip.meta?.guildName || (clip.meta?.kind === 'private' ? '私聊' : `频道 ${clip.channelId}`)
   const lines: string[] = [
-    `${formatClipId(clip.id)} · ${name} · ${formatTime(main?.timestamp || clip.createdAt)} · ${visibilityLabel(clip.visibility)}`,
+    `${formatClipId(clipNo(clip))} · ${name} · ${formatTime(main?.timestamp || clip.createdAt)} · ${visibilityLabel(clip.visibility)}`,
     '────────────────────────────',
   ]
 

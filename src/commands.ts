@@ -1,7 +1,7 @@
 import { Context, Session } from 'koishi'
 import { Config } from './config'
-import { Clip, ClipQuery, Snapshot, TABLES, formatClipId, parseClipId, queryClips } from './db'
-import { collectClip, loadClip, persistClip, sourceFromSession } from './collect'
+import { Clip, ClipQuery, Snapshot, TABLES, clipNo, formatClipId, parseClipId, queryClips, resolveClipRef } from './db'
+import { collectClip, countMessages, loadClip, persistClip, sourceFromSession } from './collect'
 import { buildHtml, renderClip } from './render'
 import { renderDetail, renderList, summaryText, truncate } from './render/text'
 
@@ -83,7 +83,9 @@ export function applyCommands(ctx: Context, config: Config) {
       const denied = checkAccess(session)
       if (denied) return denied
 
-      const message = session.quote
+      // 被收藏的是「被引用的那条消息」，不是这条 clip 指令本身。
+      // 有的适配器只把引用挂在 event.message.quote 上，session.quote 是空的，两个都看。
+      const message = session.quote ?? (session.event?.message as any)?.quote
       if (!message) {
         return '请先引用一条消息再发送 clip。'
       }
@@ -104,11 +106,12 @@ export function applyCommands(ctx: Context, config: Config) {
       const source = sourceFromSession(session, message, message?.quote)
       const collected = await collectClip(ctx, config, source, visibility)
       const { clip, existing } = await persistClip(ctx, collected)
+      const label = formatClipId(clipNo(clip))
       if (existing) {
-        return `这条消息已经收藏过了：${formatClipId(clip.id)}（clip show ${formatClipId(clip.id)} 查看）`
+        return `这条消息已经收藏过了：${label}（clip show ${label} 查看）`
       }
       const tail = collected.degraded.length ? `\n⚠️ 降级：${collected.degraded.join(', ')}` : ''
-      return `已收藏 ${formatClipId(clip.id)} · ${collected.messages.length} 条 · ${visibility}\nclip show ${formatClipId(clip.id)} 查看${tail}`
+      return `已收藏 ${label} · ${countMessages(collected.messages)} 条 · ${visibility}\nclip show ${label} 查看${tail}`
     })
 
   root
@@ -167,27 +170,28 @@ export function applyCommands(ctx: Context, config: Config) {
     })
 
   root
-    .subcommand('.show <id:text>', '查看一条收藏')
+    .subcommand('.show <id:string>', '查看一条收藏')
     .option('text', '--text 以文字展示')
     .option('bubble', '--bubble 强制气泡')
     .option('card', '--card 强制卡片')
     .action(async ({ session, options }, id) => {
       if (!session) return
-      const clipId = parseClipId(id)
-      if (!clipId) return '收藏 ID 形如 #A1024 或 1024。'
-      const loaded = await loadClip(ctx, clipId)
-      if (!loaded || loaded.clip.deletedAt || !canSee(loaded.clip, session, config)) {
-        return `找不到收藏 ${formatClipId(clipId)}。`
+      if (!parseClipId(id)) return '收藏 ID 形如 #A1024 或 1024。'
+      const clip = await resolveClipRef(ctx, id)
+      if (!clip || clip.deletedAt || !canSee(clip, session, config)) {
+        return `找不到收藏 ${formatClipId(parseClipId(id)!)}。`
       }
-      const { clip, messages, attachments } = loaded
-      if (options.text) return renderDetail(clip, messages, attachments.length)
+      const loaded = await loadClip(ctx, clip.id)
+      if (!loaded) return `找不到收藏 ${formatClipId(clipNo(clip))}。`
+      const { messages, attachments } = loaded
+      if (options.text) return renderDetail(loaded.clip, messages, attachments.length)
       const force = options.card ? 'card' : options.bubble ? 'bubble' : undefined
-      const result = await renderClip(ctx, config, clip, messages, force)
+      const result = await renderClip(ctx, config, loaded.clip, messages, force)
       if (result.image) return result.image
       if (result.reason === 'no-puppeteer') {
         logger.info('puppeteer 未启用，降级为文字展示')
       }
-      return renderDetail(clip, messages, attachments.length)
+      return renderDetail(loaded.clip, messages, attachments.length)
     })
 
   root
@@ -226,29 +230,29 @@ export function applyCommands(ctx: Context, config: Config) {
       })
     })
 
-  root.subcommand('.rm <id:text>', '删除一条收藏').action(async ({ session }, id) => {
+  root.subcommand('.rm <id:string>', '删除一条收藏').action(async ({ session }, id) => {
     if (!session) return
-    const clipId = parseClipId(id)
-    if (!clipId) return '收藏 ID 形如 #A1024 或 1024。'
-    const [clip] = await ctx.database.get(TABLES.clip, { id: clipId })
-    if (!clip) return `找不到收藏 ${formatClipId(clipId)}。`
+    if (!parseClipId(id)) return '收藏 ID 形如 #A1024 或 1024。'
+    const clip = await resolveClipRef(ctx, id)
+    if (!clip) return `找不到收藏 ${formatClipId(parseClipId(id)!)}。`
     const ownerId = String(session.uid ?? session.userId ?? '')
     const isOwner = clip.ownerId === ownerId
     const isAdmin = authorityOf(session) >= 4
     if (!isOwner && !isAdmin) return '只有收藏者本人或管理员可以删除。'
-    await ctx.database.set(TABLES.clip, clipId, { deletedAt: new Date() })
-    return `已删除 ${formatClipId(clipId)}。`
+    await ctx.database.set(TABLES.clip, clip.id, { deletedAt: new Date() })
+    return `已删除 ${formatClipId(clipNo(clip))}（可恢复）。`
   })
 
   root
-    .subcommand('.export <id:text>', '导出收藏')
+    .subcommand('.export <id:string>', '导出收藏')
     .option('html', '--html 导出 HTML')
     .action(async ({ session, options }, id) => {
       if (!session) return
-      const clipId = parseClipId(id)
-      if (!clipId) return '收藏 ID 形如 #A1024 或 1024。'
-      const loaded = await loadClip(ctx, clipId)
-      if (!loaded) return `找不到收藏 ${formatClipId(clipId)}。`
+      if (!parseClipId(id)) return '收藏 ID 形如 #A1024 或 1024。'
+      const target = await resolveClipRef(ctx, id)
+      if (!target) return `找不到收藏 ${formatClipId(parseClipId(id)!)}。`
+      const loaded = await loadClip(ctx, target.id)
+      if (!loaded) return `找不到收藏 ${formatClipId(clipNo(target))}。`
       const payload = options.html
         ? buildHtml(loaded.clip, loaded.messages, config)
         : JSON.stringify(
@@ -320,7 +324,7 @@ function buildListCard(items: { clip: Clip; messages: Snapshot[] }[], config: Co
       const main = item.messages.find((message) => message.role === 'main') ?? item.messages[0]
       const name = main?.nickname || main?.username || item.clip.ownerName || '未知'
       const hasForward = item.messages.some((message) => message.role === 'forward')
-      return `<div class="li"><span class="lid">${formatClipId(item.clip.id)}</span><span class="lin">${escape(name)}</span><span class="lic">${escape(truncate(summaryText(main?.content, hasForward), 25))}</span></div>`
+      return `<div class="li"><span class="lid">${formatClipId(clipNo(item.clip))}</span><span class="lin">${escape(name)}</span><span class="lic">${escape(truncate(summaryText(main?.content, hasForward), 25))}</span></div>`
     })
     .join('')
   return `<!doctype html><html><head><meta charset="utf-8"><style>

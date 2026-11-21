@@ -28,6 +28,10 @@ npm i koishi-plugin-chatclip
 
 > `assets-local` 记得配 `selfUrl`（如 `http://localhost:5140`），否则转存后会变成 `file://` 地址，QQ 等平台看不到图。插件启动时会检查并 warn。
 
+## 编号
+
+收藏编号形如 #A0001，硬删除后会自动补位（删掉 3 号，原来的 4 号变成 3 号），聊天里和控制台看到的是同一个编号。
+
 ## 指令
 
 | 指令 | 说明 |
