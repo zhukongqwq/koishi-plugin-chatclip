@@ -1,4 +1,4 @@
-import { Context, Session } from 'koishi'
+import { Context, Session, h } from 'koishi'
 import { Config } from './config'
 import { Clip, ClipQuery, Snapshot, TABLES, clipNo, formatClipId, parseClipId, queryClips, resolveClipRef } from './db'
 import { collectClip, countMessages, loadClip, persistClip, sourceFromSession } from './collect'
@@ -184,7 +184,21 @@ export function applyCommands(ctx: Context, config: Config) {
       const loaded = await loadClip(ctx, clip.id)
       if (!loaded) return `找不到收藏 ${formatClipId(clipNo(clip))}。`
       const { messages, attachments } = loaded
-      if (options.text) return renderDetail(loaded.clip, messages, attachments.length)
+      if (options.text) {
+        const text = renderDetail(loaded.clip, messages, attachments.length)
+        // 纯文字模式下附件只有 [图片] 占位，图片本身也要发出来
+        const images = attachments
+          .filter((item) => item.type === 'img' || item.type === 'image')
+          .map((item) => item.assetsUrl || item.originalUrl)
+          .filter((url) => !!url)
+        if (!images.length) return text
+        const limited = images.slice(0, 6)
+        const rest = images.length - limited.length
+        return [
+          rest > 0 ? `${text}\n（还有 ${rest} 张图片未发送）` : text,
+          ...limited.map((url) => h.image(url)),
+        ]
+      }
       const force = options.card ? 'card' : options.bubble ? 'bubble' : undefined
       const result = await renderClip(ctx, config, loaded.clip, messages, force)
       if (result.image) return result.image

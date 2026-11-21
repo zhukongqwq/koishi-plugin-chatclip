@@ -178,7 +178,7 @@ export function buildCard(clip: Clip, main: Snapshot, quote: Snapshot | undefine
   const fontSize = length <= 30 ? 32 : length <= 80 ? 27 : 22
   const body = `
   <div class="top">
-    ${avatarHtml(main, 110)}
+    ${avatarHtml(main, 80)}
     <div class="main">
       <div class="mark">“</div>
       <div class="text" style="font-size:${fontSize}px">${textHtml(split.text) || '<span class="dim">[无文字内容]</span>'}${split.text ? '<span class="mark close">”</span>' : ''}</div>
@@ -242,7 +242,7 @@ export function buildBubble(clip: Clip, messages: Snapshot[], config: Config) {
 .rows { padding-top: 8px; }
 .row { display: flex; gap: 14px; padding: 18px 0; }
 .row + .row { border-top: 1px solid #f4f6fa; }
-.row .avatar { width: 46px; height: 46px; }
+.row .avatar { width: 38px; height: 38px; }
 .col { flex: 1; min-width: 0; }
 .name { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
 .name .time { font-weight: 400; font-size: 14px; color: #98a2b3; margin-left: 8px; }
