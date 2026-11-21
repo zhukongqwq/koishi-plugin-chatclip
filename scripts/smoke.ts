@@ -7,7 +7,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import * as chatclip from '../src'
 import { collectClip, persistClip, loadClip, type CollectSource } from '../src/collect'
-import { queryClips } from '../src/db'
+import { queryClips, purgeClips, TABLES } from '../src/db'
 import { renderClip } from '../src/render'
 import { renderDetail, renderList } from '../src/render/text'
 
@@ -164,6 +164,17 @@ async function run() {
       console.log(`[render ${name}] no image:`, result.reason)
     }
   }
+
+  // 7. 回收站：软删除 → 只有软删除才能硬删除 → 清空
+  await ctx.database.set(TABLES.clip, { id: first.clip.id }, { deletedAt: new Date() })
+  const recycle = await queryClips(ctx, { deletedOnly: true }, 1, 10)
+  console.log('[recycle] soft-deleted =', recycle.total)
+  const blocked = await purgeClips(ctx, { ids: [forwardClip.clip.id] })
+  console.log('[purge] not-yet-deleted skipped =', blocked.skipped.length, 'removed =', blocked.ids.length)
+  const purged = await purgeClips(ctx, { all: true })
+  console.log('[purge] recycle bin removed =', purged.ids.length)
+  const remaining = await queryClips(ctx, { includeDeleted: true }, 1, 10)
+  console.log('[purge] remaining =', remaining.total)
 
   // puppeteer 的 dispose 会与 browser 关闭竞争，冒烟脚本直接退出即可
   process.exit(0)

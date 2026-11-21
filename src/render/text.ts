@@ -89,7 +89,7 @@ export function renderList(items: ListItem[], options: {
   const pages = Math.max(1, Math.ceil(options.total / options.pageSize))
   const header = `${options.title ?? '📚 我的收藏'} · 共 ${options.total} 条 · 第 ${options.page}/${pages} 页`
   if (!items.length) {
-    return '📭 没有找到符合条件的收藏。\n试试 /clip list，或用 /clip search 关键词 换个条件。'
+    return '📭 没有找到符合条件的收藏。\n试试 clip list，或用 clip search 关键词 换个条件。'
   }
   const lines: string[] = [header, '────────────────────────────']
   for (const item of items) {
@@ -102,7 +102,7 @@ export function renderList(items: ListItem[], options: {
     lines.push('')
   }
   lines.push('────────────────────────────')
-  lines.push(`/clip show ${formatClipId(items[0].clip.id)} 渲染单条 · /clip list ${options.page + 1} 下一页`)
+  lines.push(`clip show ${formatClipId(items[0].clip.id)} 渲染单条 · clip list ${options.page + 1} 下一页`)
   return lines.join('\n').trimEnd()
 }
 

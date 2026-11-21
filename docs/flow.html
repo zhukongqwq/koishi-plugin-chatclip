@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 36px 40px 44px;
+    background: #eef1f6;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    color: #1f2430;
+    width: 1180px;
+  }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: .3px; }
+  .sub { color: #6b7488; font-size: 14px; margin-bottom: 26px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .card {
+    background: #fff; border-radius: 16px; padding: 20px 22px 24px;
+    box-shadow: 0 10px 30px rgba(23, 31, 56, .08);
+  }
+  .card h2 {
+    font-size: 16px; margin: 0 0 2px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h2 .n {
+    width: 22px; height: 22px; border-radius: 7px; background: #4f6bed; color: #fff;
+    font-size: 12px; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .card .desc { color: #6b7488; font-size: 12.5px; margin: 2px 0 16px; }
+  .step { display: flex; gap: 12px; }
+  .rail { width: 18px; display: flex; flex-direction: column; align-items: center; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #4f6bed; margin-top: 14px; flex: 0 0 auto; }
+  .line { width: 2px; flex: 1; background: #dfe4f1; }
+  .step:last-child .line { display: none; }
+  .body { flex: 1; padding-bottom: 14px; }
+  .cmd {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 13.5px; background: #f2f4fa; border: 1px solid #e3e7f4;
+    border-radius: 8px; padding: 7px 10px; display: inline-block; margin: 4px 0 6px;
+  }
+  .exp { font-size: 12.5px; color: #55607a; line-height: 1.55; }
+  .exp b { color: #1f2430; font-weight: 600; }
+  .tag {
+    font-size: 11px; padding: 2px 7px; border-radius: 6px; background: #eaf0ff; color: #3c5bd8;
+    margin-left: 6px;
+  }
+  .tag.warn { background: #fff3e0; color: #b26a00; }
+  .tag.ok { background: #e6f6ec; color: #1d7a44; }
+  .note {
+    margin-top: 22px; background: #fff; border-radius: 14px; padding: 16px 20px;
+    font-size: 13px; color: #55607a; box-shadow: 0 10px 30px rgba(23, 31, 56, .06);
+  }
+  .note b { color: #1f2430; }
+  .note code { font-family: "Cascadia Mono", Consolas, monospace; background: #f2f4fa; padding: 1px 5px; border-radius: 5px; }
+</style>
+</head>
+<body>
+  <h1>chatclip 全部命令验证流程</h1>
+  <div class="sub">按 ① → ② → ③ → ④ 的顺序走一遍，每步都写了「执行什么 / 应该看到什么」。带 ⚠ 的是异常分支，可以最后再试。</div>
+
+  <div class="grid">
+    <div class="card">
+      <h2><span class="n">1</span>收藏</h2>
+      <div class="desc">核心路径：引用一条消息 → 落库 → 回编号</div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip</div>
+          <div class="exp">先引用任意一条消息再发。回复 <b>已收藏 #A0001 · 1 条 · 仅自己</b>，第二行是 <b>clip show #A0001 查看</b>。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip -s channel</div>
+          <div class="exp">可见性改成「本群可见」。回复里的可见性字段变成 <b>本群可见</b>。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip</div>
+          <div class="exp">对同一条消息再发一次：应回 <b>这条消息已经收藏过了：#A0001</b>（幂等，不会重复入库）。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip</div>
+          <div class="exp"><span class="tag warn">⚠ 异常</span> 不引用直接发：回 <b>请先引用一条消息再发送 clip。</b></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip</div>
+          <div class="exp"><span class="tag warn">⚠ 异常</span> 引用一条<b>带图片</b>的消息：回复后面多一行 <b>🖼 1</b>；控制台详情里能看到缩略图。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div></div>
+        <div class="body">
+          <div class="cmd">clip</div>
+          <div class="exp"><span class="tag warn">⚠ 异常</span> 引用一条<b>合并转发</b>：回复里条数变成转发条数之和；如果取不到内容会多一行 <b>⚠️ 降级：forward-unavailable</b>，这是正常的。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n">2</span>展示</h2>
+      <div class="desc">文字列表 / 单条图片 / 强制形态</div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip list</div>
+          <div class="exp">纯文字列表：<b>📚 我的收藏 · 共 N 条 · 第 1/1 页</b>，每条三行（编号/发送者/时间/可见性 + 25 字摘要 + 可选引用与图数），末尾是翻页与查看提示。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip list --image</div>
+          <div class="exp">出一张<b>气泡风总览图</b>（聊天气泡 + 合并转发卡片）。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip show #A0001</div>
+          <div class="exp">单条渲染成<b>大字卡</b>：引号、粗体正文、—— 昵称、userId、引用块、附件、右下时间。编号写 <code>1024</code> 或 <code>#A1024</code> 都行。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip show 1024 --text</div>
+          <div class="exp">不出图，改成纯文字详情（标题行 + ①②③ 消息 + 附件链接）。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip show 1024 --bubble</div>
+          <div class="exp">强制出<b>气泡</b>形态，用来和默认的大字卡对比。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div></div>
+        <div class="body">
+          <div class="cmd">clip help</div>
+          <div class="exp">打印全部指令清单（收藏 / 浏览两段）。别名：<code>收藏</code>、<code>chatclip</code>、<code>fav</code>。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n">3</span>检索与筛选</h2>
+      <div class="desc">先确认收藏数量够多，再来跑这一组</div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip search 渲染</div>
+          <div class="exp">回 <b>🔍「渲染」 · 我的收藏 · N 条</b> + 命中的列表；没有命中回 <b>📭 没有找到包含「渲染」的收藏。</b></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip list --from 白露</div>
+          <div class="exp">只列这个人发的收藏；多个发送者用英文逗号分隔。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip list --since 7d</div>
+          <div class="exp">只看最近 7 天。支持 <code>7d</code> / <code>24h</code> / <code>30m</code> / <code>2026-11-01</code>，配合 <code>--until</code> 取区间。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip list --here</div>
+          <div class="exp">只看本群收藏；<code>--all</code> 只列公开的（跨群可见的那些）。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div></div>
+        <div class="body">
+          <div class="cmd">clip list 2</div>
+          <div class="exp">翻到第 2 页（每页条数由控制台配置里的 <code>pageSize</code> 决定，默认 10）。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n">4</span>管理与控制台</h2>
+      <div class="desc">软删除 → 回收站 → 硬删除，以及导出</div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip rm #A0001</div>
+          <div class="exp">软删除，回 <b>已删除 #A0001（可恢复）</b>；这条从 <code>clip list</code> 里消失。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">clip export #A0002</div>
+          <div class="exp">回一份 JSON（消息 + 附件 + 元信息）；加 <code>--html</code> 导出可离线打开的 HTML。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">控制台 → 聊天收藏</div>
+          <div class="exp">顶部筛选：关键词 / 发送者 / 可见性 / <b>状态（全部 / 仅正常 / 回收站）</b> / 时间范围。表格行首有<b>多选勾选框</b>。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">勾选若干行 → 批量软删除</div>
+          <div class="exp">批量栏显示 <b>已选 N 条</b>；删除后把状态切到「回收站」就能看到它们，行尾按钮变成 <b>恢复 / 硬删除</b>。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body">
+          <div class="cmd">硬删除（仅回收站里的行）</div>
+          <div class="exp">先弹确认框；确认后消息与附件记录一并删除。<b>未软删除的收藏不会出现硬删除按钮</b>，后端也会跳过它们。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><div class="dot"></div></div>
+        <div class="body">
+          <div class="cmd">清空回收站</div>
+          <div class="exp">批量栏右侧，一次删掉所有已软删除的收藏；回 <b>已永久删除 N 条</b> 或 <b>回收站是空的</b>。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    测试顺序建议：<b>① 收藏 3 条（一条纯文字、一条带图、一条合并转发）→ ② 各看一次 list / list --image / show / show --text → ③ 搜一次、按发送者和时间各筛一次 → ④ rm 一条后进控制台回收站，试批量恢复与硬删除</b>。
+    如果某一步的表现和上面写的不一样，把那条回复原文发我，我按回复内容定位。
+    测试完记得让我关掉我开的 koishi 实例（目前只剩你自己那个在跑，我的已经关了）。
+  </div>
+</body>
+</html>

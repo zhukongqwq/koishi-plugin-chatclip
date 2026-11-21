@@ -159,6 +159,8 @@ export interface ClipQuery {
   start?: Date
   end?: Date
   includeDeleted?: boolean
+  /** 只看已软删除的（控制台「回收站」） */
+  deletedOnly?: boolean
 }
 
 /**
@@ -193,7 +195,7 @@ export function buildClipQuery(query: ClipQuery, clipIds: number[] | null): any 
   else if (query.channelIds?.length) filter.channelId = { $in: query.channelIds }
   if (query.visibility?.length) filter.visibility = { $in: query.visibility }
   if (clipIds) filter.id = { $in: clipIds }
-  if (!query.includeDeleted) filter.deletedAt = null
+  if (!query.includeDeleted && !query.deletedOnly) filter.deletedAt = null
   if (query.start || query.end) {
     filter.createdAt = {}
     if (query.start) filter.createdAt.$gte = query.start
@@ -217,6 +219,17 @@ export async function queryClips(
   if (clipIds && !clipIds.length) return { items: [], total: 0 }
   const filter = buildClipQuery(query, clipIds)
 
+  // minato 的 `$ne: null` 在 SQL 里是 `!= NULL`，永远不成立，所以回收站用 id 集合过滤
+  if (query.deletedOnly) {
+    const all = await ctx.database.get(TABLES.clip, {}, { fields: ['id', 'deletedAt'] })
+    const deleted = all.filter((row) => row.deletedAt).map((row) => row.id)
+    const narrowed = Array.isArray(filter.id?.$in)
+      ? (filter.id.$in as number[]).filter((id) => deleted.includes(id))
+      : deleted
+    if (!narrowed.length) return { items: [], total: 0 }
+    filter.id = { $in: narrowed }
+  }
+
   const ids = await ctx.database.get(TABLES.clip, filter, {
     fields: ['id'],
     sort: { createdAt: 'desc' },
@@ -237,6 +250,33 @@ export async function queryClips(
 
 export function escapeRegex(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export interface PurgeResult {
+  /** 真正被硬删除的收藏 id */
+  ids: number[]
+  /** 因为还没软删除而被跳过的 id */
+  skipped: number[]
+}
+
+/**
+ * 硬删除：只允许已经软删除的收藏，连消息行与附件行一起删掉。
+ * 传 all = true 时清空整个回收站。
+ */
+export async function purgeClips(
+  ctx: Context,
+  options: { ids?: number[], all?: boolean } = {},
+): Promise<PurgeResult> {
+  const rows = await ctx.database.get(TABLES.clip, {}, { fields: ['id', 'deletedAt'] })
+  const deleted = rows.filter((row) => row.deletedAt).map((row) => row.id)
+  const wanted = options.all ? deleted : (options.ids ?? []).filter((id) => deleted.includes(id))
+  const skipped = options.all ? [] : (options.ids ?? []).filter((id) => !deleted.includes(id))
+  if (!wanted.length) return { ids: [], skipped }
+
+  await ctx.database.remove(TABLES.message, { clipId: { $in: wanted } })
+  await ctx.database.remove(TABLES.attachment, { clipId: { $in: wanted } })
+  await ctx.database.remove(TABLES.clip, { id: { $in: wanted } })
+  return { ids: wanted, skipped }
 }
 
 /** `#A1031` / `A1031` / `a1031` / `1031` → 1031 */

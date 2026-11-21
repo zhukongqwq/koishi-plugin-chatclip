@@ -18,7 +18,7 @@ export const inject = {
 }
 
 export const usage = `
-引用一条消息后发送 \`/clip\` 即可收藏；\`/clip list\` 查看收藏夹，\`/clip show 编号\` 渲染单条。
+引用一条消息后发送 \`clip\` 即可收藏；\`clip list\` 查看收藏夹，\`clip show 编号\` 渲染单条。
 - 图片需要 \`assets\` 插件（assets-local / assets-s3 均可）；
 - 图片渲染需要 \`puppeteer\` 插件，未启用时自动降级为文字。`
 

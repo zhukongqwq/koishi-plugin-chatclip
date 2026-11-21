@@ -7,7 +7,7 @@
 - 采集的字段：发送者（昵称 / 用户名 / 平台 ID / 头像）、正文、消息时间、引用消息、合并转发的子消息、附件（图片 / 文件 / 语音）、平台与频道信息、收藏人与可见性。
 - 附件在收藏时**转存到 `assets`**，不依赖平台临时链接；转存失败会退化成原 URL 并标记降级原因。
 - 同一个人的同一条消息**重复收藏是幂等的**：唯一键 `(platform, channelId, messageId, ownerId)`，重复引用返回同一个 `#A0001` 编号。
-- 展示：`/clip show` 单条大字卡，`/clip list --image` 气泡总览，`/clip --text` 纯文字，puppeteer 缺失时自动降级为文字。
+- 展示：`clip show` 单条大字卡，`clip list --image` 气泡总览，`clip --text` 纯文字，puppeteer 缺失时自动降级为文字。
 - 控制台页面：筛选、翻页、改可见性、软删除 / 恢复、导出 JSON / HTML。
 
 ## 安装
@@ -32,20 +32,19 @@ npm i koishi-plugin-chatclip
 
 | 指令 | 说明 |
 | --- | --- |
-| `/clip`（引用一条消息） | 收藏这条消息，默认按配置的可见性 |
-| `/clip -m <messageId>` | 没有引用时，按消息 ID 收藏（根命令不带位置参数，否则 `clip list` 会被当成参数吞掉） |
-| `/clip -s channel` | 这次收藏为「本群可见」（`private` / `channel` / `public`） |
-| `/clip list [页码]` | 收藏列表（文字） |
-| `/clip list --image` | 收藏列表（气泡图） |
-| `/clip list --here` | 只看本群的 |
-| `/clip list --all` | 只看公开的 |
-| `/clip list --from <昵称>` | 按发送者筛选 |
-| `/clip list --since 7d` / `--until 2026-11-01` | 按时间筛选，支持 `7d` `24h` `30m` 与绝对时间 |
-| `/clip show <编号>` | 渲染单条：大字卡（有合并转发时出气泡） |
-| `/clip show <编号> --text` / `--card` / `--bubble` | 强制指定展示形态 |
-| `/clip search <关键词>` | 按正文搜索 |
-| `/clip rm <编号>` | 软删除自己的收藏 |
-| `/clip export <编号>` / `--html` | 导出 JSON / HTML |
+| `clip`（引用一条消息） | 收藏这条消息，默认按配置的可见性 |
+| `clip -s channel` | 这次收藏为「本群可见」（`private` / `channel` / `public`） |
+| `clip list [页码]` | 收藏列表（文字） |
+| `clip list --image` | 收藏列表（气泡图） |
+| `clip list --here` | 只看本群的 |
+| `clip list --all` | 只看公开的 |
+| `clip list --from <昵称>` | 按发送者筛选 |
+| `clip list --since 7d` / `--until 2026-11-01` | 按时间筛选，支持 `7d` `24h` `30m` 与绝对时间 |
+| `clip show <编号>` | 渲染单条：大字卡（有合并转发时出气泡） |
+| `clip show <编号> --text` / `--card` / `--bubble` | 强制指定展示形态 |
+| `clip search <关键词>` | 按正文搜索 |
+| `clip rm <编号>` | 软删除自己的收藏 |
+| `clip export <编号>` / `--html` | 导出 JSON / HTML |
 
 别名：`收藏`、`chatclip`、`fav`。
 
@@ -93,7 +92,7 @@ node scripts/e2e-console.mjs                # 控制台筛选与导出的端到�
 
 ### 已知问题：命令报 `RangeError: Maximum call stack size exceeded`
 
-现象：发送 `/clip`、`/clip.list` 时抛错，栈里全是 `at Object.fork.parent.filter (@koishijs/loader/src/shared.ts:350)`。
+现象：发送 `clip`、`clip.list` 时抛错，栈里全是 `at Object.fork.parent.filter (@koishijs/loader/src/shared.ts:350)`。
 
 成因在 koishi loader 而不是本插件：loader 应用插件时会安装一层 `$filter` 包装
 
@@ -101,11 +100,11 @@ node scripts/e2e-console.mjs                # 控制台筛选与导出的端到�
 fork.parent.filter = (session) => parent.filter(session) && (isNullable(filter) || session.resolve(filter))
 ```
 
-控制台改插件配置（`@koishijs/plugin-config` 的 `manager/reload`）和 HMR 会以**插件自己的上下文**再次调用 `loader.reload`，某些重载顺序会让这层包装指向自身，于是之后任何一次 `ctx.filter(session)` 都会栈溢出；命令匹配恰好是 `cmd.match() → cmd.ctx.filter(session)`，所以表现为「一发 `/clip` 就炸」。
+控制台改插件配置（`@koishijs/plugin-config` 的 `manager/reload`）和 HMR 会以**插件自己的上下文**再次调用 `loader.reload`，某些重载顺序会让这层包装指向自身，于是之后任何一次 `ctx.filter(session)` 都会栈溢出；命令匹配恰好是 `cmd.match() → cmd.ctx.filter(session)`，所以表现为「一发 `clip` 就炸」。
 
-插件里做了兜底：`protectFilter()` 在 apply 时、下一个 tick、以及 `ready` 时各探测一次本插件的 `ctx.filter`，一旦发现栈溢出就把本插件上下文回退成 `filter = () => true` 并打 warn。这样 `/clip` 系列命令不再受影响（本插件没有用到 `$filter`）。
+插件里做了兜底：`protectFilter()` 在 apply 时、下一个 tick、以及 `ready` 时各探测一次本插件的 `ctx.filter`，一旦发现栈溢出就把本插件上下文回退成 `filter = () => true` 并打 warn。这样 `clip` 系列命令不再受影响（本插件没有用到 `$filter`）。
 
-**根治办法**：重启一次 koishi，重载期间留下的自引用链就没了。如果重启后仍然复现，请把 `Error.stackTraceLimit = 300` 打开后再发一次 `/clip`，把完整栈贴出来——重点看最深处的调用者是不是 `middleware.ts` 的 `_executeMatcher`（若如此，说明环在别的插件上，本插件的兜底无能为力）。
+**根治办法**：重启一次 koishi，重载期间留下的自引用链就没了。如果重启后仍然复现，请把 `Error.stackTraceLimit = 300` 打开后再发一次 `clip`，把完整栈贴出来——重点看最深处的调用者是不是 `middleware.ts` 的 `_executeMatcher`（若如此，说明环在别的插件上，本插件的兜底无能为力）。
 
 ## 许可
 

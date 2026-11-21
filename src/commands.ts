@@ -65,36 +65,27 @@ export function applyCommands(ctx: Context, config: Config) {
   }
 
   // 注意：根命令不能声明位置参数。[page] 之类的参数会让 koishi 的命令解析停在根命令上，
-  // 于是 `/clip list` 会把 list 当成根命令的参数（见 @koishijs/core 的 inferCommand）。
+  // 于是 `clip list` 会把 list 当成根命令的参数（见 @koishijs/core 的 inferCommand）。
   const root = ctx
     .command('clip', '收藏一条聊天记录')
     .alias('收藏')
     .alias('chatclip')
     .alias('fav')
     .option('share', '-s <visibility> 可见性：private / channel / public')
-    .option('message', '-m <id:text> 没有引用时，按消息 ID 收藏')
     .option('card', '--card 强制单条卡片')
     .option('bubble', '--bubble 强制气泡总览')
     .option('text', '--text 以文字展示')
-    .usage('引用一条消息后发送 /clip 即可收藏；`/clip list` 查看收藏夹。')
-    .example('/clip （引用一条消息）')
-    .example('/clip -s channel')
+    .usage('引用一条消息后发送 clip 即可收藏；clip list 查看收藏夹。')
+    .example('clip （引用一条消息）')
+    .example('clip -s channel')
     .action(async ({ session, options }) => {
       if (!session) return
       const denied = checkAccess(session)
       if (denied) return denied
 
-      let message = session.quote
-      const target = options.message ? String(options.message).trim() : ''
-      if (!message && target) {
-        try {
-          message = await session.bot.getMessage(session.channelId!, target)
-        } catch {
-          message = null as any
-        }
-      }
+      const message = session.quote
       if (!message) {
-        return '请先引用一条消息，或用 -m 指定消息 ID：/clip -m 消息ID'
+        return '请先引用一条消息再发送 clip。'
       }
 
       const visibility = (options.share ?? config.defaultVisibility) as 'private' | 'channel' | 'public'
@@ -114,10 +105,10 @@ export function applyCommands(ctx: Context, config: Config) {
       const collected = await collectClip(ctx, config, source, visibility)
       const { clip, existing } = await persistClip(ctx, collected)
       if (existing) {
-        return `这条消息已经收藏过了：${formatClipId(clip.id)}（/clip show ${formatClipId(clip.id)} 查看）`
+        return `这条消息已经收藏过了：${formatClipId(clip.id)}（clip show ${formatClipId(clip.id)} 查看）`
       }
       const tail = collected.degraded.length ? `\n⚠️ 降级：${collected.degraded.join(', ')}` : ''
-      return `已收藏 ${formatClipId(clip.id)} · ${collected.messages.length} 条 · ${visibility}\n/clip show ${formatClipId(clip.id)} 查看${tail}`
+      return `已收藏 ${formatClipId(clip.id)} · ${collected.messages.length} 条 · ${visibility}\nclip show ${formatClipId(clip.id)} 查看${tail}`
     })
 
   root
@@ -145,7 +136,7 @@ export function applyCommands(ctx: Context, config: Config) {
       }
       const result = await queryClips(ctx, query, current, size)
       if (!result.total) {
-        return '📭 这里还没有收藏。引用一条消息发送 /clip 试试。'
+        return '📭 这里还没有收藏。引用一条消息发送 clip 试试。'
       }
       const map = await messagesOf(ctx, result.items)
       const items = result.items.map((clip) => ({ clip, messages: map.get(clip.id) ?? [] }))
@@ -206,7 +197,7 @@ export function applyCommands(ctx: Context, config: Config) {
     .option('image', '--image 渲染为图片')
     .action(async ({ session, options }, keyword) => {
       if (!session) return
-      if (!keyword) return '用法：/clip search 关键词'
+      if (!keyword) return '用法：clip search 关键词'
       const size = config.pageSize
       const result = await queryClips(ctx, { ...scopeOf(session, options, config), keyword }, 1, size)
       if (!result.total) return `📭 没有找到包含「${truncate(keyword, 20)}」的收藏。`
@@ -285,24 +276,23 @@ export const HELP_TEXT = [
   '📚 chatclip · 聊天记录收藏',
   '',
   '【收藏】',
-  '/clip                            引用一条消息后发送，收藏它',
-  '/clip -m 消息ID                  没有引用时，按消息 ID 收藏',
-  '/clip -s channel                 指定可见性：private / channel / public',
-  '/clip --card | --bubble | --text 收藏后附带指定展示形态',
+  'clip                            引用一条消息后发送，收藏它',
+  'clip -s channel                 指定可见性：private / channel / public',
+  'clip --card | --bubble | --text 收藏后附带指定展示形态',
   '',
   '【浏览】',
-  '/clip list [页码]                我的收藏（文字）',
-  '/clip list --image               渲染成图片总览',
-  '/clip list --here                只看本群',
-  '/clip list --all                 只看公开',
-  '/clip list --from 昵称           按发送者筛选，多个用逗号分隔',
-  '/clip list --since 7d --until 30m  按时间筛选（7d / 24h / 30m / 2026-11-01）',
-  '/clip show 编号                  渲染单条（大字卡；有合并转发时出气泡）',
-  '/clip show 编号 --text           以纯文字查看',
-  '/clip search 关键词              搜索正文',
-  '/clip export 编号                导出 JSON（--html 导出 HTML）',
-  '/clip rm 编号                    删除（软删除，管理员或本人）',
-  '/clip help                       本帮助',
+  'clip list [页码]                我的收藏（文字）',
+  'clip list --image               渲染成图片总览',
+  'clip list --here                只看本群',
+  'clip list --all                 只看公开',
+  'clip list --from 昵称           按发送者筛选，多个用逗号分隔',
+  'clip list --since 7d --until 30m  按时间筛选（7d / 24h / 30m / 2026-11-01）',
+  'clip show 编号                  渲染单条（大字卡；有合并转发时出气泡）',
+  'clip show 编号 --text           以纯文字查看',
+  'clip search 关键词              搜索正文',
+  'clip export 编号                导出 JSON（--html 导出 HTML）',
+  'clip rm 编号                    删除（软删除，管理员或本人）',
+  'clip help                       本帮助',
   '',
   '编号形如 #A1024，也可以只写 1024。别名：收藏 / chatclip / fav。',
 ].join('\n')

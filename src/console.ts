@@ -1,6 +1,6 @@
 import { Context } from 'koishi'
 import { Config } from './config'
-import { Clip, Snapshot, TABLES, formatClipId, parseClipId, queryClips } from './db'
+import { Clip, Snapshot, TABLES, formatClipId, parseClipId, purgeClips, queryClips } from './db'
 import { loadClip } from './collect'
 import { buildHtml } from './render'
 import { summaryText, truncate, mediaTypes } from './render/text'
@@ -13,6 +13,8 @@ export interface ConsoleQuery {
   visibility?: string
   channelId?: string
   ownerId?: string
+  /** all = 正常 + 回收站，none = 只看正常（默认），only = 只看回收站 */
+  deleted?: 'all' | 'none' | 'only'
   page?: number
   pageSize?: number
 }
@@ -35,7 +37,10 @@ declare module '@koishijs/console' {
     'chatclip/list'(query: ConsoleQuery): Promise<{ items: ClipRow[], total: number }>
     'chatclip/get'(id: number): Promise<any>
     'chatclip/remove'(id: number): Promise<boolean>
+    'chatclip/removeMany'(ids: number[]): Promise<{ ids: number[] }>
     'chatclip/restore'(id: number): Promise<boolean>
+    'chatclip/restoreMany'(ids: number[]): Promise<{ ids: number[] }>
+    'chatclip/purge'(payload: { ids?: number[], all?: boolean }): Promise<{ ids: number[], skipped: number[] }>
     'chatclip/visibility'(payload: { id: number, visibility: string }): Promise<boolean>
     'chatclip/export'(payload: { id: number, format: 'json' | 'html' }): Promise<string>
   }
@@ -86,7 +91,8 @@ export function applyConsole(ctx: Context, config: Config) {
       visibility,
       channelId: query.channelId || undefined,
       ownerId: query.ownerId || undefined,
-      includeDeleted: true,
+      includeDeleted: query.deleted !== 'none',
+      deletedOnly: query.deleted === 'only',
     }, page, pageSize)
 
     const clips = result.items as Clip[]
@@ -138,6 +144,26 @@ export function applyConsole(ctx: Context, config: Config) {
     if (!clipId) return false
     await ctx.database.set(TABLES.clip, clipId, { deletedAt: null })
     return true
+  })
+
+  // 批量软删除 / 批量恢复：控制台的多选操作
+  ctx.console.addListener('chatclip/removeMany', async (ids) => {
+    const clean = (ids ?? []).map((id) => Number(id)).filter((id) => id > 0)
+    if (!clean.length) return { ids: [] }
+    await ctx.database.set(TABLES.clip, { id: { $in: clean } }, { deletedAt: new Date() })
+    return { ids: clean }
+  })
+
+  ctx.console.addListener('chatclip/restoreMany', async (ids) => {
+    const clean = (ids ?? []).map((id) => Number(id)).filter((id) => id > 0)
+    if (!clean.length) return { ids: [] }
+    await ctx.database.set(TABLES.clip, { id: { $in: clean } }, { deletedAt: null })
+    return { ids: clean }
+  })
+
+  // 硬删除：只有已经软删除的收藏才会被真正删掉，其余回在 skipped 里
+  ctx.console.addListener('chatclip/purge', async (payload = {}) => {
+    return purgeClips(ctx, { ids: payload.ids, all: payload.all })
   })
 
   ctx.console.addListener('chatclip/visibility', async ({ id, visibility }) => {

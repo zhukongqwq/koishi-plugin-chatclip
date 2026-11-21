@@ -24,6 +24,11 @@
             <el-option label="本群可见" value="channel" />
             <el-option label="公开" value="public" />
           </el-select>
+          <el-select v-model="filters.deleted" style="width: 130px" @change="reload">
+            <el-option label="全部状态" value="all" />
+            <el-option label="仅正常" value="none" />
+            <el-option label="回收站" value="only" />
+          </el-select>
           <el-date-picker
             v-model="filters.range"
             type="datetimerange"
@@ -37,7 +42,19 @@
         </div>
       </div>
 
+      <div class="batchbar">
+        <span class="hint">已选 {{ selection.length }} 条</span>
+        <el-button size="small" :disabled="!selection.length" @click="removeSelected">批量软删除</el-button>
+        <el-button size="small" :disabled="!selection.length" @click="restoreSelected">批量恢复</el-button>
+        <el-button size="small" type="danger" :disabled="!selectedDeleted.length" @click="purgeSelected">
+          硬删除选中（{{ selectedDeleted.length }}）
+        </el-button>
+        <span class="spacer" />
+        <el-button size="small" type="danger" plain @click="purgeAll">清空回收站</el-button>
+      </div>
+
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="items"
         row-key="id"
@@ -45,7 +62,9 @@
         stripe
         style="width: 100%"
         @row-dblclick="openDetail"
+        @selection-change="onSelectionChange"
       >
+        <el-table-column type="selection" width="42" />
         <el-table-column prop="key" label="ID" width="92" />
         <el-table-column prop="sender" label="发送者" width="130" show-overflow-tooltip />
         <el-table-column prop="preview" label="内容" min-width="240" show-overflow-tooltip />
@@ -75,7 +94,7 @@
             <el-tag v-else type="success" size="small">正常</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openDetail(row)">查看</el-button>
             <el-button link type="primary" size="small" @click="exportClip(row, 'json')">JSON</el-button>
@@ -87,7 +106,10 @@
               size="small"
               @click="removeClip(row)"
             >删除</el-button>
-            <el-button v-else link type="warning" size="small" @click="restoreClip(row)">恢复</el-button>
+            <template v-else>
+              <el-button link type="warning" size="small" @click="restoreClip(row)">恢复</el-button>
+              <el-button link type="danger" size="small" @click="purgeClip(row)">硬删除</el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -150,7 +172,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { send } from '@koishijs/client'
 
 interface ClipRow {
@@ -178,10 +200,16 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 
+const tableRef = ref<any>(null)
+const selection = ref<ClipRow[]>([])
+const selectedIds = computed(() => selection.value.map((row) => row.id))
+const selectedDeleted = computed(() => selection.value.filter((row) => row.deleted))
+
 const filters = reactive({
   keyword: '',
   from: '',
   visibility: 'all',
+  deleted: 'all' as 'all' | 'none' | 'only',
   range: null as null | [Date, Date],
 })
 
@@ -228,6 +256,7 @@ async function load() {
       keyword: filters.keyword || undefined,
       from: filters.from || undefined,
       visibility: filters.visibility,
+      deleted: filters.deleted,
       start: filters.range?.[0]?.toISOString(),
       end: filters.range?.[1]?.toISOString(),
       page: page.value,
@@ -236,9 +265,14 @@ async function load() {
     if (!result) return
     items.value = result.items
     total.value = result.total
+    selection.value = []
   } finally {
     loading.value = false
   }
+}
+
+function onSelectionChange(rows: ClipRow[]) {
+  selection.value = rows
 }
 
 function reload() {
@@ -250,6 +284,7 @@ function reset() {
   filters.keyword = ''
   filters.from = ''
   filters.visibility = 'all'
+  filters.deleted = 'all'
   filters.range = null
   reload()
 }
@@ -270,6 +305,49 @@ async function removeClip(row: ClipRow) {
 async function restoreClip(row: ClipRow) {
   await send('chatclip/restore', row.id)
   row.deleted = false
+  load()
+}
+
+async function purgeClip(row: ClipRow) {
+  if (!row.deleted) {
+    alert('只有已经软删除的收藏才能硬删除。')
+    return
+  }
+  if (!confirm(`硬删除 ${row.key}？消息与附件记录会一并删除，无法恢复。`)) return
+  const result = await send('chatclip/purge', { ids: [row.id] })
+  if (!result?.ids?.length) alert('硬删除失败：这条收藏还不是软删除状态。')
+  load()
+}
+
+async function removeSelected() {
+  if (!selectedIds.value.length) return
+  if (!confirm(`把选中的 ${selectedIds.value.length} 条放进回收站？`)) return
+  await send('chatclip/removeMany', selectedIds.value)
+  load()
+}
+
+async function restoreSelected() {
+  if (!selectedIds.value.length) return
+  await send('chatclip/restoreMany', selectedIds.value)
+  load()
+}
+
+async function purgeSelected() {
+  const ids = selectedDeleted.value.map((row) => row.id)
+  if (!ids.length) {
+    alert('选中的行里没有已软删除的收藏。')
+    return
+  }
+  if (!confirm(`硬删除选中的 ${ids.length} 条？无法恢复。`)) return
+  await send('chatclip/purge', { ids })
+  load()
+}
+
+async function purgeAll() {
+  if (!confirm('清空回收站：所有已软删除的收藏都会被永久删除，无法恢复。')) return
+  const result = await send('chatclip/purge', { all: true })
+  const count = result?.ids?.length ?? 0
+  alert(count ? `已永久删除 ${count} 条。` : '回收站是空的。')
   load()
 }
 
@@ -327,6 +405,26 @@ onMounted(load)
 .footer {
   display: flex;
   justify-content: flex-end;
+}
+
+.batchbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg2);
+  font-size: 13px;
+}
+
+.batchbar .hint {
+  color: var(--fg3);
+  margin-right: 4px;
+}
+
+.batchbar .spacer {
+  flex: 1;
 }
 
 .meta {
