@@ -6,6 +6,7 @@
 
 - 采集的字段：发送者（昵称 / 用户名 / 平台 ID / 头像）、正文、消息时间、引用消息、合并转发的子消息、附件（图片 / 文件 / 语音）、平台与频道信息、收藏人与可见性。
 - 附件在收藏时**转存到 `assets`**，不依赖平台临时链接；转存失败会退化成原 URL 并标记降级原因。
+- 文件消息暂不支持收藏（引用文件消息发送 `clip` 会直接提示「暂不支持收藏文件消息」）。
 - 同一个人的同一条消息**重复收藏是幂等的**：唯一键 `(platform, channelId, messageId, ownerId)`，重复引用返回同一个 `#A0001` 编号。
 - 展示：`clip show` 单条大字卡，`clip list --image` 气泡总览，`clip --text` 纯文字，puppeteer 缺失时自动降级为文字。
 - 控制台页面：筛选、翻页、改可见性、软删除 / 恢复、导出 JSON / HTML。
@@ -63,7 +64,7 @@ npm i koishi-plugin-chatclip
 | `allowPrivate` / `allowGroup` | `true` | 是否允许私聊 / 群聊收藏 |
 | `storage` | `true` | 是否把附件转存到 assets |
 | `maxAssetSize` | `10MB` | 超过这个大小的附件不转存，只留原 URL |
-| `reaction` / `reactionEmoji` | `false` / `📌` | 是否支持用表情回应收藏 |
+| `textImageLimit` | `6` | `clip show --text` 时最多一起发送几张图片，0 表示不发送 |
 | `pageSize` | `10` | 列表每页条数 |
 | `maxClipsPerUser` | `0` | 每人收藏上限，0 表示不限制 |
 | `imageWidth` | `720` | 渲染图片宽度 |

@@ -90,6 +90,13 @@ export function applyCommands(ctx: Context, config: Config) {
         return '请先引用一条消息再发送 clip。'
       }
 
+      // 文件消息暂不处理：附件表存的是可下载资源，但平台侧拿不到稳定文件名/大小，
+      // 存了也没法可靠地再发回去，直接拒绝比存一条残缺记录更清楚。
+      const elements = ((message as any).elements ?? []) as Array<{ type?: string }>
+      if (elements.some((el) => el?.type === 'file')) {
+        return '暂不支持收藏文件消息。'
+      }
+
       const visibility = (options.share ?? config.defaultVisibility) as 'private' | 'channel' | 'public'
       if (!['private', 'channel', 'public'].includes(visibility)) {
         return '可见性只能是 private、channel 或 public。'
@@ -192,7 +199,8 @@ export function applyCommands(ctx: Context, config: Config) {
           .map((item) => item.assetsUrl || item.originalUrl)
           .filter((url) => !!url)
         if (!images.length) return text
-        const limited = images.slice(0, 6)
+        const limit = Math.max(0, config.textImageLimit)
+        const limited = images.slice(0, limit)
         const rest = images.length - limited.length
         // 平台侧是另一台机器（如 NapCat 在远端），localhost 的资源它拉不到，
         // 所以先自己下载再以 base64 发出；下载失败才退回原始 URL。

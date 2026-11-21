@@ -15,8 +15,8 @@ export interface Config {
   storage: boolean
   /** 单个附件大小上限（MB），超过则只留原链接 */
   maxAssetSize: number
-  reaction: boolean
-  reactionEmoji: string
+  /** clip show --text 时最多跟发几张图片，0 = 不跟发 */
+  textImageLimit: number
   pageSize: number
   /** 每人收藏上限，0 = 不限 */
   maxClipsPerUser: number
@@ -37,8 +37,7 @@ export const Config: Schema<Config> = Schema.object({
   allowGroup: Schema.boolean().default(true).description('允许在群聊中使用。'),
   storage: Schema.boolean().default(true).description('把图片转存到 assets；关闭则只保存原链接。'),
   maxAssetSize: Schema.natural().min(1).default(10).description('单个附件大小上限（MB）。'),
-  reaction: Schema.boolean().default(false).description('允许用表情回应快捷收藏。'),
-  reactionEmoji: Schema.string().default('📌').description('快捷收藏使用的表情。'),
+  textImageLimit: Schema.natural().min(0).max(20).default(6).description('clip show --text 时最多一起发送几张图片，0 表示不发送。'),
   pageSize: Schema.natural().min(1).max(50).default(10).description('列表每页条数。'),
   maxClipsPerUser: Schema.natural().default(0).description('每人收藏上限，0 表示不限。'),
   imageWidth: Schema.natural().min(320).max(1600).default(720).description('图片渲染宽度。'),

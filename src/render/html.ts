@@ -102,8 +102,10 @@ function mediaHtml(media: ElementJSON[], maxHeight: number) {
   if (!items.length) return ''
   const count = items.length
   if (count === 1) return `<div class="media media-1">${items[0]}</div>`
-  if (count === 2) return `<div class="media media-2">${items.join('')}</div>`
-  return `<div class="media media-grid">${items.slice(0, 6).join('')}${count > 6 ? `<div class="more">+${count - 6}</div>` : ''}</div>`
+  // 9 宫格：三列正方形，超过 9 张时补一个 +N 格子
+  const limit = 9
+  const more = count > limit ? `<div class="more">+${count - limit}</div>` : ''
+  return `<div class="media media-grid">${items.slice(0, limit).join('')}${more}</div>`
 }
 
 function quoteBlock(quote: Snapshot | undefined, compact: boolean) {
@@ -148,10 +150,17 @@ body { background: #eef1f6; font-family: ${FONT}; -webkit-font-smoothing: antial
 .media { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; margin-top: 16px; }
 .media-1 { display: block; }
 .media-item { max-width: 100%; border-radius: 14px; border: 1px solid #e7ebf3; display: block; }
-.media-2 .media-item { width: calc(50% - 5px); height: 170px; object-fit: cover; }
-.media-grid .media-item, .media-grid video { width: calc(33.33% - 7px); height: 140px; object-fit: cover; }
-.media-grid .file-chip, .media-2 .file-chip { height: 140px; justify-content: center; }
-.more { display: flex; align-items: center; justify-content: center; width: calc(33.33% - 7px); height: 140px; border-radius: 14px; background: #f1f4fa; color: #98a2b3; font-size: 18px; }
+.media-1 .media-item, .media-1 video { max-width: 66%; aspect-ratio: 1 / 1; object-fit: cover; height: auto; }
+.media-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.media-grid .media-item, .media-grid video {
+  width: 100%; aspect-ratio: 1 / 1; height: auto; object-fit: cover;
+}
+.media-grid .file-chip { width: 100%; aspect-ratio: 1 / 1; height: auto; flex-direction: column; justify-content: center; text-align: center; }
+.more {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; aspect-ratio: 1 / 1; border-radius: 14px;
+  background: #f1f4fa; color: #98a2b3; font-size: 22px; font-weight: 600;
+}
 .file-chip { display: inline-flex; align-items: center; gap: 6px; background: #f5f7fb; border: 1px solid #e7ebf3; border-radius: 10px; padding: 8px 12px; font-size: 16px; color: #475467; }
 .quote { display: flex; gap: 12px; align-items: flex-start; background: #f7f9fc; border-left: 4px solid #5b7cfa; border-radius: 12px; padding: 14px 16px; margin-top: 18px; }
 .quote-body { flex: 1; min-width: 0; }
@@ -194,7 +203,7 @@ export function buildCard(clip: Clip, main: Snapshot, quote: Snapshot | undefine
 .top { display: flex; gap: 18px; align-items: flex-start; }
 .main { flex: 1; min-width: 0; }
 .mark { font-size: 40px; line-height: 1; color: #dfe4ee; font-family: Georgia, serif; }
-.mark.close { font-size: 34px; margin-top: 2px; }
+.mark.close { font-size: 34px; margin-top: 2px; text-align: right; }
 .text { font-weight: 700; line-height: 1.42; letter-spacing: .2px; margin-top: 4px; word-break: break-word; }
 .sign { margin-top: 18px; font-size: 21px; color: #344054; }
 .uid { margin-top: 6px; font-size: 16px; color: #98a2b3; }

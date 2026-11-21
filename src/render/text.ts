@@ -91,7 +91,7 @@ export function renderList(items: ListItem[], options: {
   if (!items.length) {
     return '📭 没有找到符合条件的收藏。\n试试 clip list，或用 clip search 关键词 换个条件。'
   }
-  const lines: string[] = [header, '────────────────────────────']
+  const lines: string[] = [header, '─────────────']
   for (const item of items) {
     const { main, forwards } = splitMain(item.messages)
     const name = main?.nickname || main?.username || item.clip.ownerName || '未知'
@@ -101,7 +101,7 @@ export function renderList(items: ListItem[], options: {
     if (marks) lines.push(marks)
     lines.push('')
   }
-  lines.push('────────────────────────────')
+  lines.push('─────────────')
   lines.push(`clip show ${formatClipId(clipNo(items[0].clip))} 渲染单条 · clip list ${options.page + 1} 下一页`)
   return lines.join('\n').trimEnd()
 }
@@ -112,7 +112,7 @@ export function renderDetail(clip: Clip, messages: Snapshot[], attachmentCount: 
   const source = clip.meta?.channelName || clip.meta?.guildName || (clip.meta?.kind === 'private' ? '私聊' : `频道 ${clip.channelId}`)
   const lines: string[] = [
     `${formatClipId(clipNo(clip))} · ${name} · ${formatTime(main?.timestamp || clip.createdAt)} · ${visibilityLabel(clip.visibility)}`,
-    '────────────────────────────',
+    '─────────────',
   ]
 
   for (const [index, snapshot] of messages.entries()) {
@@ -125,7 +125,7 @@ export function renderDetail(clip: Clip, messages: Snapshot[], attachmentCount: 
     }
   }
 
-  lines.push('────────────────────────────')
+  lines.push('─────────────')
   lines.push(`可见性 ${visibilityLabel(clip.visibility)} · 附件 ${attachmentCount} · 来源 ${source}`)
   if (clip.degraded?.length) lines.push(`⚠️ 降级 ${clip.degraded.join(', ')}`)
   return lines.join('\n')
